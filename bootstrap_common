@@ -10,7 +10,16 @@
 
 tftpget() {
 	echo "fetching ${1}..."
+	# Fetch the file
   tftp 10.0.0.1 -c get kubernetes/"${1}"
+	# Separate the relative path from the filename
+	FILEPATH=$(echo "${1}" | sed 's/\/[^/]*$//')
+	# If there is a '/' anywhere in the relative path of the file,
+	if [[ "${FILEPATH}" != "${1}" ]]; then
+		FILENAME=$(echo "${1}" | awk -F / '{print $NF}')
+		mkdir -p "${FILEPATH}"
+		mv "${FILENAME}" "${1}"
+	fi
 	echo "done"
 }
 
@@ -33,36 +42,35 @@ modprobe br_netfilter && modprobe overlay
 echo "overlay
 br_netfilter" > customfiles/etc/modules-load.d/k8s.conf
 tftpget templates/modules-k8s.conf
-mv modules-k8s.conf customfiles/etc/modules-load.d/k8s.conf
+mv templates/modules-k8s.conf customfiles/etc/modules-load.d/k8s.conf
 tftpget templates/sysctl-k8s.conf
-mv sysctl-k8s.conf customfiles/etc/sysctl.d/k8s.conf
+mv templates/sysctl-k8s.conf customfiles/etc/sysctl.d/k8s.conf
 
 CRIO_DIR_VERSION=$(jq < kubernetes/env.json -r '.versions.crio_dir')
 CRIO_RUNC_VERSION=$(jq < kubernetes/env.json -r '.versions.crio_runc')
 CRIO_RUNC_TILDE_VERSION=$(jq < kubernetes/env.json -r '.versions.crio_runc_tilde')
 tftpget downloads/cri-o/cri-o_"${CRIO_VERSION}"~0_amd64.deb
-tftpget cri-o-runc_"${CRIO_RUNC_VERSION}"~"${CRIO_RUNC_TILDE_VERSION}"_amd64.deb
-dpkg
+tftpget downloads/cri-o-runc_"${CRIO_RUNC_VERSION}"~"${CRIO_RUNC_TILDE_VERSION}"_amd64.deb
 mkdir debs
-mv *.deb debs
+mv downloads/*.deb debs
 
 # Crictl
 ##################################################################################
 CRICTL_VERSION=$(jq < env.json -r '.versions.crictl')
 tftpget downloads/crictl-v"${CRICTL_VERSION}"-linux-amd64.tar.gz
-tar -xvf crictl-v"${CRICTL_VERSION}"-linux-amd64.tar.gz
-chmod +x crictl
-mv crictl customfiles/usr/local/bin
+tar -xvf downloads/crictl-v"${CRICTL_VERSION}"-linux-amd64.tar.gz
+chmod +x downloads/crictl
+mv downloads/crictl customfiles/usr/local/bin
 echo "Installed crictl"
-
-
 
 # CNI plugins
 ##########################################################################################
 CNI_VERSION=$(jq < env.json -r '.versions.cni')
 tftpget downloads/cni-plugins-linux-amd64-v"${CNI_VERSION}".tgz
-tar -xvf cni-plugins-linux-amd64-v"${CNI_VERSION}".tgz -C customfiles/opt/cni/bin/
+tar -xvf downloads/cni-plugins-linux-amd64-v"${CNI_VERSION}".tgz -C customfiles/opt/cni/bin/
 echo "Installed cni plugins"
+
+# Kubeadm
 
 
 
@@ -71,3 +79,5 @@ echo "Installed cni plugins"
 
 # Required to reload /etc/sysctl.d/k8s.conf for cri-o
 sysctl --system
+
+# Install all .deb files in debs/

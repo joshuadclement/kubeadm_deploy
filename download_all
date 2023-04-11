@@ -1,0 +1,104 @@
+#!/bin/bash
+
+ETCD_VERSION=$(jq < kubernetes/env.json -r '.versions.etcd')
+KUBERNETES_VERSION=$(jq < kubernetes/env.json -r '.versions.kubernetes')
+RUNC_VERSION=$(jq < kubernetes/env.json -r '.versions.runc')
+HELM_VERSION=$(jq < kubernetes/env.json -r '.versions.helm')
+CRIO_VERSION=$(jq < kubernetes/env.json -r '.versions.crio')
+CRIO_DIR_VERSION=$(jq < kubernetes/env.json -r '.versions.crio_dir')
+CRIO_RUNC_VERSION=$(jq < kubernetes/env.json -r '.versions.crio_runc')
+CRIO_RUNC_TILDE_VERSION=$(jq < kubernetes/env.json -r '.versions.crio_runc_tilde')
+CRICTL_VERSION=$(jq < kubernetes/env.json -r '.versions.crictl')
+CNI_VERSION=$(jq < kubernetes/env.json -r '.versions.cni')
+[[ -d kubernetes/downloads ]] || mkdir kubernetes/downloads
+cd kubernetes/downloads
+
+get_if_not_present() {
+	FILENAME=$(echo "${1}" | sed 's/^.*\///')
+	[[ -f "${FILENAME}" ]] || wget "${1}"
+}
+
+# check the hashes when the *.sha256 file only includes the hash, not formatted for `sha256sum -c`
+check_unformatted() {
+	CHECKSUM=$(sha256sum "${1}" | awk '{print $1}')
+	FROM_FILE=$(< "${1}".sha256)
+	{ [[ "${CHECKSUM}" == "${FROM_FILE}" ]] && echo "${1}: OK"; } || { echo "Failed checksum for ${1}" && exit 1; }
+}
+
+
+# Files for the control plane
+########################################################################################################
+get_if_not_present https://get.helm.sh/helm-v"${HELM_VERSION}"-linux-amd64.tar.gz
+get_if_not_present https://get.helm.sh/helm-v"${HELM_VERSION}"-linux-amd64.tar.gz.sha256sum
+sha256sum -c helm-v"${HELM_VERSION}"-linux-amd64.tar.gz.sha256sum || {
+	echo "Failed checksum for cni-containerd" && exit 1
+}
+
+
+# Cri-o
+########################################################################################################
+verify_ubuntu() {
+	[[ -d "${3}" ]] || mkdir "${3}"
+	cd "${3}"
+	get_if_not_present "${1}"/Release
+	get_if_not_present "${1}"/Release.key
+	get_if_not_present "${1}"/Release.gpg
+	get_if_not_present "${1}"/Packages
+
+	# Verify the Release file
+	gpg --import Release.key
+	gpg --verify Release.gpg Release || {
+		echo "Failed verification of ${3} Release"
+		exit 1
+	}
+
+	# Use the Release file to verify the Packages file
+	LINE_NUMBER=$(grep -n SHA256 Release | cut -d ':' -f 1)
+	EXPECTED_CHECKSUM=$(tail -n +"${LINE_NUMBER}" Release | grep Packages\$ | head -n 1 | awk '{print $1}')
+	MEASURED_CHECKSUM=$(sha256sum Packages | cut -d ' ' -f 1)
+	[[ "${EXPECTED_CHECKSUM}" == "${MEASURED_CHECKSUM}" ]] || {
+		echo "Failed verification of ${3} Packages checksum"
+		exit 1
+	}
+
+	# Use the Packages file to verify the .deb package
+	get_if_not_present "${1}"/amd64/"${2}"
+	LINE_NUMBER_PACKAGE=$(grep -n "${3}" Packages | cut -d ':' -f 1 | head -n 1)
+	LINE_NUMBER_ARCH=$(tail -n +"${LINE_NUMBER_PACKAGE}" Packages | grep -n amd64 | cut -d ':' -f 1 | head -n 1)
+	EXPECTED_CHECKSUM=$(tail -n +"$((LINE_NUMBER_ARCH + LINE_NUMBER_PACKAGE))" Packages | grep SHA256 | head -n 1 | cut -d ' ' -f 2)
+	MEASURED_CHECKSUM=$(sha256sum "${2}" | cut -d ' ' -f 1)
+	[[ "${EXPECTED_CHECKSUM}" == "${MEASURED_CHECKSUM}" ]] || {
+		echo "Failed verification of ${3} .deb checksum"
+		exit 1
+	}
+	echo "${3}: OK"
+	cd ..
+}
+
+verify_ubuntu https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/"${CRIO_DIR_VERSION}":/"${CRIO_VERSION}"/xUbuntu_22.04 cri-o_"${CRIO_VERSION}"~0_amd64.deb cri-o
+verify_ubuntu https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_22.04/ cri-o-runc_"${CRIO_RUNC_VERSION}"~"${CRIO_RUNC_TILDE_VERSION}"_amd64.deb cri-o-runc
+
+# For all nodes
+########################################################################################################
+
+# CNI
+get_if_not_present https://github.com/containernetworking/plugins/releases/download/v"${CNI_VERSION}"/cni-plugins-linux-amd64-v"${CNI_VERSION}".tgz
+get_if_not_present https://github.com/containernetworking/plugins/releases/download/v"${CNI_VERSION}"/cni-plugins-linux-amd64-v"${CNI_VERSION}".tgz.sha256
+sha256sum -c cni-plugins-linux-amd64-v"${CNI_VERSION}".tgz.sha256 || {
+	echo "Failed checksum for cni-plugins" && exit 1
+}
+
+# Critools
+get_if_not_present https://github.com/kubernetes-sigs/cri-tools/releases/download/v"${CRICTL_VERSION}"/crictl-v"${CRICTL_VERSION}"-linux-amd64.tar.gz
+get_if_not_present https://github.com/kubernetes-sigs/cri-tools/releases/download/v"${CRICTL_VERSION}"/crictl-v"${CRICTL_VERSION}"-linux-amd64.tar.gz.sha256
+check_unformatted crictl-v"${CRICTL_VERSION}"-linux-amd64.tar.gz
+
+
+# Kubernetes files
+#######################################################################################################
+for file in "kubectl" "kubeadm" "kubelet"; do
+	get_if_not_present https://dl.k8s.io/release/v"${KUBERNETES_VERSION}"/bin/linux/amd64/"${file}"
+	get_if_not_present https://dl.k8s.io/v"${KUBERNETES_VERSION}"/bin/linux/amd64/"${file}".sha256
+	check_unformatted "${file}"
+done
+

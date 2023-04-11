@@ -1,0 +1,111 @@
+#!/bin/bash
+
+mkdir -p customfiles/usr/local/bin \
+			customfiles/etc/systemd/system \
+			customfiles/etc/kubernetes/config \
+			customfiles/home/user/.kube \
+			customfiles/root/.kube
+
+tftpget() {
+	echo "fetching ${1}..."
+  tftp 10.0.0.1 -c get kubernetes/"${1}"
+	echo "done"
+}
+tftpget env.json
+
+
+# certs
+##################################################################################
+tftpget certs/ca.pem
+tftpget certs/ca-key.pem
+tftpget certs/kubernetes-key.pem
+tftpget certs/kubernetes.pem
+tftpget certs/service-account-key.pem
+tftpget certs/service-account.pem
+chmod 0600 *-key.pem
+
+# configs
+##################################################################################
+tftpget configs/encryption-config.yaml
+tftpget configs/kube-controller-manager.kubeconfig
+tftpget configs/kube-scheduler.kubeconfig
+tftpget configs/admin.kubeconfig
+chmod 0600 *.kubeconfig
+
+# templates
+##################################################################################
+tftpget templates/etcd.service.j2
+tftpget templates/kube-apiserver.service.j2
+tftpget templates/kube-controller-manager.service.j2
+tftpget templates/kube-scheduler.service.j2
+tftpget templates/kube-scheduler.yaml
+
+# etcd
+##################################################################################
+ETCD_VERSION=$(jq < env.json -r '.versions.etcd')
+tftpget downloads/etcd-v"${ETCD_VERSION}"-linux-amd64.tar.gz
+tar -xvf etcd-v"${ETCD_VERSION}"-linux-amd64.tar.gz
+mv etcd-v"${ETCD_VERSION}"-linux-amd64/etcd* customfiles/usr/local/bin/
+echo "Installed etcd binaries"
+
+mkdir -p customfiles/etc/etcd customfiles/var/lib/etcd
+chmod 700 customfiles/var/lib/etcd
+cp ca.pem kubernetes-key.pem kubernetes.pem customfiles/etc/etcd/
+
+j2 -f json etcd.service.j2 env.json > customfiles/etc/systemd/system/etcd.service
+echo "Installed etcd config"
+
+
+# kubernetes binaries
+#################################################################################
+tftpget downloads/kubectl
+tftpget downloads/kube-apiserver
+tftpget downloads/kube-controller-manager
+tftpget downloads/kube-scheduler
+chmod +x kubectl kube-apiserver kube-controller-manager kube-scheduler
+mv kubectl kube-apiserver kube-controller-manager kube-scheduler customfiles/usr/local/bin/
+echo "Installed kubernetes server binariers"
+
+# apiserver
+#################################################################################
+mkdir -p customfiles/var/lib/kubernetes/
+mv ca.pem \
+	 ca-key.pem \
+	 kubernetes-key.pem \
+	 kubernetes.pem \
+	 service-account-key.pem \
+	 service-account.pem \
+	 encryption-config.yaml \
+	 customfiles/var/lib/kubernetes/
+
+j2 -f json kube-apiserver.service.j2 env.json > customfiles/etc/systemd/system/kube-apiserver.service
+echo "Installed apiserver config"
+
+# controller-manager
+#################################################################################
+mv kube-controller-manager.kubeconfig customfiles/var/lib/kubernetes/
+j2 -f json kube-controller-manager.service.j2 env.json > customfiles/etc/systemd/system/kube-controller-manager.service
+echo "Installed controller-manager config"
+
+# scheduler
+#################################################################################
+mv kube-scheduler.kubeconfig customfiles/var/lib/kubernetes/
+j2 -f json kube-scheduler.service.j2 env.json > customfiles/etc/systemd/system/kube-scheduler.service
+mv kube-scheduler.yaml customfiles/etc/kubernetes/config/kube-scheduler.yaml
+echo "Installed scheduler config"
+
+# kubectl config
+cp admin.kubeconfig customfiles/home/user/.kube/config
+chown user:user customfiles/home/user/.kube/config
+cp admin.kubeconfig customfiles/root/.kube/config
+
+# Put all files where they go
+cp -r customfiles/* /
+
+# enable and start
+SERVICES="etcd kube-apiserver kube-controller-manager kube-scheduler"
+systemctl daemon-reload
+systemctl enable ${SERVICES}
+systemctl start ${SERVICES}
+
+

@@ -1,0 +1,73 @@
+#! /bin/bash
+
+# install dependencies
+#apt install -y iptables-persistent tftp-hpa j2cli net-tools jq nfs-common socat conntrack ipset
+# configure network
+# set iptables rules
+
+# Disable swap
+[[ $(swapon --show) ]] && swapoff -a && sed -i 's/^\([^#].*?\sswap\s+sw\s+.*\)$/# \1/'
+
+tftpget() {
+	echo "fetching ${1}..."
+  tftp 10.0.0.1 -c get kubernetes/"${1}"
+	echo "done"
+}
+
+# Get the environment file
+tftpget env.json
+# Write this worker node's hostname into the environment file
+HOSTNAME=$(hostname -s)
+jq < env.json '. + { "this_hostname": "'"${HOSTNAME}"'" }' > tmp
+mv tmp env.json
+
+mkdir -p \
+			customfiles/usr/local/bin \
+			customfiles/etc/modules-load.d \
+			customfiles/etc/sysctl.d \
+			customfiles/opt/cni/bin \
+
+# Cri-o
+##########################################################################################
+modprobe br_netfilter && modprobe overlay
+echo "overlay
+br_netfilter" > customfiles/etc/modules-load.d/k8s.conf
+tftpget templates/modules-k8s.conf
+mv modules-k8s.conf customfiles/etc/modules-load.d/k8s.conf
+tftpget templates/sysctl-k8s.conf
+mv sysctl-k8s.conf customfiles/etc/sysctl.d/k8s.conf
+
+CRIO_DIR_VERSION=$(jq < kubernetes/env.json -r '.versions.crio_dir')
+CRIO_RUNC_VERSION=$(jq < kubernetes/env.json -r '.versions.crio_runc')
+CRIO_RUNC_TILDE_VERSION=$(jq < kubernetes/env.json -r '.versions.crio_runc_tilde')
+tftpget downloads/cri-o/cri-o_"${CRIO_VERSION}"~0_amd64.deb
+tftpget cri-o-runc_"${CRIO_RUNC_VERSION}"~"${CRIO_RUNC_TILDE_VERSION}"_amd64.deb
+dpkg
+mkdir debs
+mv *.deb debs
+
+# Crictl
+##################################################################################
+CRICTL_VERSION=$(jq < env.json -r '.versions.crictl')
+tftpget downloads/crictl-v"${CRICTL_VERSION}"-linux-amd64.tar.gz
+tar -xvf crictl-v"${CRICTL_VERSION}"-linux-amd64.tar.gz
+chmod +x crictl
+mv crictl customfiles/usr/local/bin
+echo "Installed crictl"
+
+
+
+# CNI plugins
+##########################################################################################
+CNI_VERSION=$(jq < env.json -r '.versions.cni')
+tftpget downloads/cni-plugins-linux-amd64-v"${CNI_VERSION}".tgz
+tar -xvf cni-plugins-linux-amd64-v"${CNI_VERSION}".tgz -C customfiles/opt/cni/bin/
+echo "Installed cni plugins"
+
+
+
+
+
+
+# Required to reload /etc/sysctl.d/k8s.conf for cri-o
+sysctl --system

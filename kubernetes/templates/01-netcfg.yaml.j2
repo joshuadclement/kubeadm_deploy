@@ -1,0 +1,41 @@
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    {{ trusted_network_interfaces[this_hostname] }}:
+      dhcp4: no
+      addresses:
+        - {{ trusted_network_ips[this_hostname] }}/24
+      routes:
+{%- if not public_network_configs[this_hostname] is defined %}
+        - via: {{ trusted_network_gateway }}
+          on-link: true
+          to: default
+{%- endif %}
+{%- for worker in worker_hostnames %}
+{%- if worker != this_hostname %}
+        - via: {{ worker_ips[worker] }}
+          on-link: true
+          to: {{ worker_subnets[worker] }}
+{%- endif %}
+{%- endfor %}
+      nameservers:
+        addresses:
+          - {{ trusted_network_nameserver }}
+{%- if public_network_configs[this_hostname] is defined %}
+    {{ public_network_configs[this_hostname].interface }}:
+      dhcp4: no
+      addresses:
+        - {{ public_network_configs[this_hostname].address }}/{{ public_network_configs[this_hostname].netmask }}
+      routes:
+        - via: {{ public_network_configs[this_hostname].gateway }}
+          on-link: true
+          to: default
+{%- endif %}
+  vlans:
+    {{ vlan_config.interface }}:
+      id: {{ vlan_config.id }}
+      link: {{ trusted_network_interfaces[this_hostname] }}
+      addresses:
+        - {{ vlan_network_addresses[this_hostname] }}/{{ vlan_config.netmask }}
+

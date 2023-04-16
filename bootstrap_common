@@ -2,11 +2,6 @@
 
 # install dependencies
 #apt install -y iptables-persistent tftp-hpa j2cli net-tools jq nfs-common socat conntrack ipset
-# configure network
-# set iptables rules
-
-# Disable swap
-[[ $(swapon --show) ]] && swapoff -a && sed -i 's/^\([^#].*?\sswap\s+sw\s+.*\)$/# \1/'
 
 tftpget() {
 	echo "fetching ${1}..."
@@ -23,32 +18,122 @@ tftpget() {
 	echo "done"
 }
 
+add_json_val() {
+	jq < env.json '. + { "'"${1}"'": "'"${2}"'" }' > tmp
+	mv tmp env.json
+}
 # Get the environment file
 tftpget env.json
-# Write this worker node's hostname into the environment file
-HOSTNAME=$(hostname -s)
-jq < env.json '. + { "this_hostname": "'"${HOSTNAME}"'" }' > tmp
-mv tmp env.json
 
+# Permanent configuration
+##########################################################################################
+##########################################################################################
+##########################################################################################
+
+# configure network
+##########################################################################################
+# Get the MAC address of the interface on this machine which is in the env.json->mac_addr_mappings
+MAC_ADDR=$(ip link | grep link/ether | awk '{print $2}' | while read m; do
+  [[ $(jq < env.json '.mac_addr_mappings | has( "'"${m}"'" )') == true ]] && echo "${m}" && break
+done)
+if [[ "${MAC_ADDR}" == "" ]]; then
+	echo "This node's MAC address is not in the env.json's mac_addr_mappings. Something is probably wrong!" 1>&2
+	exit 1
+fi
+HOSTNAME=$(jq < env.json -r '.mac_addr_mappings."'"${MAC_ADDR}"'"')
+# Write this node's hostname into the environment file
+add_json_val "this_hostname" "${HOSTNAME}"
+# Set this node's hostname
+hostnamectl set-hostname "${HOSTNAME}"
+# Get the netplan configuration
+tftpget templates/01-netcfg.yaml.j2
+j2 -f json templates/01-netcfg.yaml.j2 env.json > /etc/netplan/01-netcfg.yaml
+netplan apply
+# Sleep for a second before trying to get more files over tftp to let the network configuration finish
+sleep 1
+echo "Configured network"
+
+# set iptables rules
+tftpget templates/rules.v4.j2
+j2 -f json templates/rules.v4.j2 env.json > /etc/iptables/rules.v4
+iptables -F && iptables -t nat -F && iptables -t mangle -F && iptables -X && iptables-restore < /etc/iptables/rules.v4
+echo "Configured iptables"
+
+# configure ssh
+##########################################################################################
+# Get the ssh key that the other hosts will trust to authenticate this host
+tftpget ssh/key
+tftpget ssh/key.pub
+mkdir /root/.ssh
+chmod 0600 /root/.ssh
+cp ssh/key* /root/.ssh
+chmod 0600 /root/.ssh/key
+SSH_PUBKEY=$(cat ssh/key.pub)
+add_json_val "ssh_pubkey" "${SSH_PUBKEY}"
+
+# Configure ssh so that this host can ssh to all other hosts by hostname
+tftpget templates/sshconfig.j2
+j2 -f json templates/sshconfig.j2 env.json > /root/.ssh/config
+
+# Write to authorized_keys so that this host will accept ssh connections from trusted keys
+tftpget templates/authorized_keys.j2
+j2 -f json templates/authorized_keys.j2 env.json > /root/.ssh/authorized_keys
+chmod 0600 /root/.ssh/authorized_keys
+cp /root/.ssh/authorized_keys /home/user/.ssh/authorized_keys
+chown user:user /home/user/.ssh/authorized_keys
+
+# Get the host key so that this host's sshd will use a key the other hosts will trust
+tftpget ssh/hostkey
+tftpget ssh/hostkey.pub
+cp ssh/hostkey* /etc/ssh/
+chmod 0600 /etc/ssh/hostkey
+SSH_HOST_PUBKEY=$(cat ssh/hostkey.pub)
+add_json_val "ssh_host_pubkey" "${SSH_HOST_PUBKEY}"
+
+# Configure sshd
+tftpget templates/sshdconfig
+cp templates/sshdconfig /etc/ssh/sshd_config
+# Restart it
+systemctl restart sshd
+
+# Write the ssh host key into known_hosts so that this host can ssh into others
+# without answering the 'trust hostkey' prompt
+tftpget templates/known_hosts.j2
+j2 -f json templates/known_hosts.j2 env.json > /root/.ssh/known_hosts
+chmod 0600 /root/.ssh/known_hosts
+echo "Configured ssh"
+
+# Kubernetes-specific
+##########################################################################################
+##########################################################################################
+##########################################################################################
+
+# Disable swap
+[[ $(swapon --show) ]] && swapoff -a && sed -i 's/^\([^#].*?\sswap\s+sw\s+.*\)$/# \1/'
+
+# Make customfiles directories
 mkdir -p \
 			customfiles/usr/local/bin \
 			customfiles/etc/modules-load.d \
 			customfiles/etc/sysctl.d \
+			customfiles/etc/crio \
 			customfiles/opt/cni/bin \
+			customfiles/etc/systemd/system \
+			customfiles/etc/systemd/system/kubelet.service.d
 
 # Cri-o
 ##########################################################################################
 modprobe br_netfilter && modprobe overlay
-echo "overlay
-br_netfilter" > customfiles/etc/modules-load.d/k8s.conf
 tftpget templates/modules-k8s.conf
-mv templates/modules-k8s.conf customfiles/etc/modules-load.d/k8s.conf
+cp templates/modules-k8s.conf customfiles/etc/modules-load.d/k8s.conf
 tftpget templates/sysctl-k8s.conf
-mv templates/sysctl-k8s.conf customfiles/etc/sysctl.d/k8s.conf
+cp templates/sysctl-k8s.conf customfiles/etc/sysctl.d/k8s.conf
+tftpget templates/crio.conf
+cp templates/crio.conf customfiles/etc/crio/crio.conf
 
-CRIO_DIR_VERSION=$(jq < kubernetes/env.json -r '.versions.crio_dir')
-CRIO_RUNC_VERSION=$(jq < kubernetes/env.json -r '.versions.crio_runc')
-CRIO_RUNC_TILDE_VERSION=$(jq < kubernetes/env.json -r '.versions.crio_runc_tilde')
+CRIO_DIR_VERSION=$(jq < env.json -r '.versions.crio_dir')
+CRIO_RUNC_VERSION=$(jq < env.json -r '.versions.crio_runc')
+CRIO_RUNC_TILDE_VERSION=$(jq < env.json -r '.versions.crio_runc_tilde')
 tftpget downloads/cri-o/cri-o_"${CRIO_VERSION}"~0_amd64.deb
 tftpget downloads/cri-o-runc_"${CRIO_RUNC_VERSION}"~"${CRIO_RUNC_TILDE_VERSION}"_amd64.deb
 mkdir debs
@@ -70,14 +155,40 @@ tftpget downloads/cni-plugins-linux-amd64-v"${CNI_VERSION}".tgz
 tar -xvf downloads/cni-plugins-linux-amd64-v"${CNI_VERSION}".tgz -C customfiles/opt/cni/bin/
 echo "Installed cni plugins"
 
-# Kubeadm
+# Kubeadm, kubelet, kubectl
+##########################################################################################
+# Following instructions from https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
+# Installing "without a package manager"
+tftpget downloads/kubectl
+tftpget downloads/kubelet
+tftpget downloads/kubeadm
+cp downloads/kube* customfiles/usr/local/bin
+
+tftpget templates/kubelet.service
+tftpget templates/10-kubeadm.conf.j2
+cp templates/kubelet.service customfiles/etc/systemd/system/kubelet.service
+j2 -f json templates/10-kubeadm.conf.j2 env.json > customfiles/etc/systemd/system/kubelet.service.d/10-kubeadm.conf
 
 
+# Copy all files from customfiles into system folders
+rsync -r customfiles/ /
 
-
-
+# Install all .deb files in debs/
+find debs -type f -exec dpkg -i {} \;
 
 # Required to reload /etc/sysctl.d/k8s.conf for cri-o
 sysctl --system
 
-# Install all .deb files in debs/
+# start and enable crio
+systemctl enable --now crio kubelet
+
+# If this is a worker node, then call bootstrap_worker_node
+if [[ $(jq < env.json '.worker_hostnames | index( "'"${HOSTNAME}"'" )') != 'null' ]]; then
+	./bootstrap_worker_node
+# If this is the control plane node, call bootstrap_control_plane
+elif [[ $(jq < env.json '.control_hostname') == "${HOSTNAME}" ]]; then
+	./bootstrap_control_plane
+else
+	echo "This host's hostname is neither in worker_hostnames nor control_hostname. Probably something is wrong with env.json" 1>&2
+	exit 1
+fi

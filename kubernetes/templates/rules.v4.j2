@@ -1,0 +1,27 @@
+*filter
+:INPUT ACCEPT [0:0]
+:FORWARD ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+-A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
+-A INPUT -s localhost/8 -j ACCEPT
+-A INPUT -s {{ trusted_network_cidr }} -p tcp -m tcp --dport 22 -j ACCEPT
+-A INPUT -p tcp -m tcp --dport 22 -j REJECT --reject-with icmp-port-unreachable
+-A INPUT -s {{ trusted_network_cidr }} -p tcp -m tcp --dport 10250 -j ACCEPT
+-A INPUT -s 127.0.0.0/8 -p tcp -m tcp --dport 10250 -j ACCEPT
+-A INPUT -p tcp -m tcp --dport 10250 -j REJECT --reject-with icmp-port-unreachable
+-A INPUT -s {{ trusted_network_cidr }} -p tcp -m tcp --dport 6443 -j ACCEPT
+-A INPUT -p tcp -m tcp --dport 6443 -j REJECT --reject-with icmp-port-unreachable
+{% if trusted_network_interface is defined -%}
+-A INPUT -i {{ trusted_network_interfaces[this_hostname] }} -j ACCEPT
+{% endif -%}
+-A INPUT -p tcp --dport 80 -j ACCEPT
+-A INPUT -p tcp --dport 443 -j ACCEPT
+{% if public_network_configs[this_hostname] is defined -%}
+-A INPUT -s {{ public_network_configs[this_hostname].address }} -j ACCEPT
+-A INPUT -i {{ public_network_configs[this_hostname].interface }} -p tcp --dport {{ acmedns_host_http_port }} -j DROP
+-A INPUT -i {{ public_network_configs[this_hostname].interface }} -j DROP
+{% endif -%}
+-A FORWARD -s 127.0.0.0/8 -p tcp --dport 10250 -j ACCEPT
+-A FORWARD -s {{ trusted_network_cidr }} -p tcp --dport 10250 -j ACCEPT
+-A FORWARD -p tcp --dport 10250 -j REJECT --reject-with icmp-port-unreachable
+COMMIT

@@ -1,0 +1,6 @@
+{% for hostname, ip in trusted_network_ips.items() %}
+Host {{ hostname }}
+  HostName {{ ip }}
+  User root
+  IdentityFile /root/.ssh/key
+{% endfor %}

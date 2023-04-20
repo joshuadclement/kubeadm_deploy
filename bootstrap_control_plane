@@ -2,7 +2,8 @@
 
 mkdir -p \
 			customfiles/home/user/.kube \
-			customfiles/root/.kube
+			customfiles/root/.kube \
+			customfiles/etc/kubernetes
 
 tftpget() {
 	echo "fetching ${1}..."
@@ -44,5 +45,8 @@ cp /etc/kubernetes/admin.conf customfiles/root/.kube/config
 # Make token and join command for worker nodes
 kubeadm token create --ttl 0 --print-join-command > customfiles/etc/kubernetes/join-command
 chmod 0600 customfiles/etc/kubernetes/join-command
+
+# Copy all files from customfiles into system folders
+rsync -rp customfiles/ /
 
 # Do stuff until heard from all worker nodes?

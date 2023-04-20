@@ -1,139 +1,25 @@
 #!/bin/bash
 
-# install dependencies
-#apt install -y iptables-persistent tftp-hpa j2cli net-tools jq nfs-common socat conntrack ipset
-# configure network
-# set iptables rules
-
-# Disable swap
-[[ $(swapon --show) ]] && swapoff -a && sed -i 's/^\([^#].*?\sswap\s+sw\s+.*\)$/# \1/'
 
 tftpget() {
 	echo "fetching ${1}..."
+	# Fetch the file
   tftp 10.0.0.1 -c get kubernetes/"${1}"
+	# Separate the relative path from the filename
+	FILEPATH=$(echo "${1}" | sed 's/\/[^/]*$//')
+	# If there is a '/' anywhere in the relative path of the file,
+	if [[ "${FILEPATH}" != "${1}" ]]; then
+		FILENAME=$(echo "${1}" | awk -F / '{print $NF}')
+		mkdir -p "${FILEPATH}"
+		mv "${FILENAME}" "${1}"
+	fi
 	echo "done"
 }
-tftpget env.json
 
-for ex in j2 jq tftp; do
-	which "${ex}" || {
-		echo "Missing dependency, ensure ${ex} is installed in PATH"
-		exit 1
-	}
-done
-
-# Write this worker node's hostname into the environment file
-HOSTNAME=$(hostname -s)
-jq < env.json '. + { "this_hostname": "'"${HOSTNAME}"'" }' > tmp
-mv tmp env.json
-
-# Prepare directories
-mkdir -p \
-			customfiles/etc/cni/net.d \
-			customfiles/opt/cni/bin \
-			customfiles/var/lib/kubelet \
-			customfiles/var/lib/kube-proxy \
-			customfiles/var/lib/kubernetes \
-			customfiles/run/kubernetes \
-			customfiles/usr/local/bin \
-			customfiles/etc/systemd/system \
-			customfiles/usr/local/bin \
-			customfiles/etc/containerd
-
-# certs
-##################################################################################
-tftpget certs/${HOSTNAME}-key.pem
-tftpget certs/${HOSTNAME}.pem
-tftpget certs/ca.pem
-chmod 0600 *-key.pem
-
-# configs
-##################################################################################
-tftpget configs/${HOSTNAME}.kubeconfig
-tftpget configs/kube-proxy.kubeconfig
-
-# Containerd
-##################################################################################
-CONTAINERD_VERSION=$(jq < env.json -r '.versions.containerd')
-mkdir containerd
-tftpget downloads/containerd-"${CONTAINERD_VERSION}"-linux-amd64.tar.gz
-tar -xvf containerd-"${CONTAINERD_VERSION}"-linux-amd64.tar.gz -C containerd
-mv containerd/bin/* customfiles/usr/local/bin/
-# create default configuration
-customfiles/usr/local/bin/containerd config default > customfiles/etc/containerd/config.toml
-# use systemd cgroup controller
-sed -i 's/SystemdCgroup \= false/SystemdCgroup \= true/g' customfiles/etc/containerd/config.toml
-tftpget templates/containerd.service
-mv containerd.service customfiles/etc/systemd/system/containerd.service
-echo "Installed containerd"
-
-# Crictl
-##################################################################################
-CRICTL_VERSION=$(jq < env.json -r '.versions.crictl')
-tftpget downloads/crictl-v"${CRICTL_VERSION}"-linux-amd64.tar.gz
-tar -xvf crictl-v"${CRICTL_VERSION}"-linux-amd64.tar.gz
-chmod +x crictl
-mv crictl customfiles/usr/local/bin
-echo "Installed crictl"
-
-# Runc
-##################################################################################
-tftpget downloads/runc.amd64
-mv runc.amd64 runc
-chmod +x runc
-mv runc customfiles/usr/local/bin
-echo "Installed runc"
-
-# CNI plugins
-##################################################################################
-CNI_VERSION=$(jq < env.json -r '.versions.cni')
-tftpget downloads/cni-plugins-linux-amd64-v"${CNI_VERSION}".tgz
-tar -xvf cni-plugins-linux-amd64-v"${CNI_VERSION}".tgz -C customfiles/opt/cni/bin/
-tftpget templates/10-bridge.conf.j2
-j2 -f json 10-bridge.conf.j2 env.json > customfiles/etc/cni/net.d/10-bridge.conf
-tftpget templates/99-loopback.conf
-mv 99-loopback.conf customfiles/etc/cni/net.d/99-loopback.conf
-echo "Installed cni plugins"
-
-# Kubernetes components
-##################################################################################
-##################################################################################
-
-# Kubelet
-##################################################################################
-tftpget downloads/kubelet
-chmod +x kubelet
-mv kubelet customfiles/usr/local/bin/
-
-mv ${HOSTNAME}-key.pem ${HOSTNAME}.pem customfiles/var/lib/kubelet/
-mv ${HOSTNAME}.kubeconfig customfiles/var/lib/kubelet/kubeconfig
-mv ca.pem customfiles/var/lib/kubernetes/
-
-tftpget templates/kubelet-config.yaml.j2
-j2 -f json kubelet-config.yaml.j2 env.json > customfiles/var/lib/kubelet/kubelet-config.yaml
-tftpget templates/kubelet.service
-mv kubelet.service customfiles/etc/systemd/system/kubelet.service
-echo "Installed kubelet"
-
-# Kube-proxy
-##################################################################################
-tftpget downloads/kube-proxy
-chmod +x kube-proxy
-mv kube-proxy customfiles/usr/local/bin/
-
-mv kube-proxy.kubeconfig customfiles/var/lib/kube-proxy/kubeconfig
-tftpget templates/kube-proxy-config.yaml.j2
-j2 -f json kube-proxy-config.yaml.j2 env.json > customfiles/var/lib/kube-proxy/kube-proxy-config.yaml
-
-tftpget templates/kube-proxy.service
-mv kube-proxy.service customfiles/etc/systemd/system/kube-proxy.service
-echo "Installed kube-proxy"
-
-
-cp -r customfiles/* /
-
-SERVICES="containerd kube-proxy kubelet"
-systemctl daemon-reload
-systemctl enable ${SERVICES}
-systemctl start ${SERVICES}
-echo "started worker node"
+JOIN_CMD=$(ssh miniworker2 cat /etc/kubernetes/join-command)
+CONTROL_IP=$(jq < env.json -r '.control_ip')
+REGEX="kubeadm join ${CONTROL_IP}:6443 --token [a-zA-Z0-9.]* --discovery-token-ca-cert-hash sha256:[a-zA-Z0-9]*"
+echo "${REGEX}"
+if [[ ${JOIN_CMD} =~ ${REGEX} ]]; then
+	eval "${JOIN_CMD}" > /var/log/kubadm_join.txt
+fi

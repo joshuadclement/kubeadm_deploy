@@ -12,11 +12,11 @@ network:
           on-link: true
           to: default
 {%- endif %}
-{%- for worker in worker_hostnames %}
-{%- if worker != this_hostname %}
-        - via: {{ worker_ips[worker] }}
+{%- for node in node_hostnames %}
+{%- if node != this_hostname %}
+        - via: {{ trusted_network_ips[node] }}
           on-link: true
-          to: {{ worker_subnets[worker] }}
+          to: {{ pod_subnets[node] }}
 {%- endif %}
 {%- endfor %}
       nameservers:

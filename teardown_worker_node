@@ -1,15 +1,7 @@
 #!/bin/bash
 
-systemctl stop containerd kube-proxy kubelet
+# ssh to control plane and drain this node
 
-CUSTOMFILES_DIR="customfiles"
-FILE_LIST=()
-while IFS= read -d $'\0' -r FILE ; do
-	REAL_FILE=$(echo "$FILE" | sed 's/'"${CUSTOMFILES_DIR}"'//')
-  FILE_LIST=("${FILE_LIST[@]}" "$REAL_FILE")
-done < <(find "${CUSTOMFILES_DIR}" -type f -print0)
+kubeadm reset > /var/log/kubeadm_reset.txt
 
-for FILE in "${FILE_LIST[@]}"; do
-	rm "$FILE"
-	echo "rm $FILE"
-done
+# ssh to control plane node and `kubectl delete node thisnode`

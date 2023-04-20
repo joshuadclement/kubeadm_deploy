@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# If this is a worker node, then call teardown_worker_node
+if [[ $(jq < env.json '.worker_hostnames | index( "'"${HOSTNAME}"'" )') != 'null' ]]; then
+	./teardown_worker_node
+	# If this is the control plane node, call teardown_control_plane
+elif [[ $(jq < env.json -r '.control_hostname') == "${HOSTNAME}" ]]; then
+	./teardown_control_plane
+else
+	echo "This host's hostname is neither in worker_hostnames nor control_hostname. Probably something is wrong with env.json" 1>&2
+	exit 1
+fi
+
+# Reset iptables rules
+iptables -F && iptables -t nat -F && iptables -t mangle -F && iptables -X && iptables-restore < /etc/iptables/rules.v4
+
+# Then stop services and clean up files
+systemctl stop kubelet crio
+
+# Get all the customfiles filenames so that they can be purged from the system directory
+CUSTOMFILES_DIR="customfiles"
+FILE_LIST=()
+while IFS= read -d $'\0' -r FILE ; do
+	REAL_FILE=$(echo "$FILE" | sed 's/'"${CUSTOMFILES_DIR}"'//')
+  FILE_LIST=("${FILE_LIST[@]}" "$REAL_FILE")
+done < <(find "${CUSTOMFILES_DIR}" -type f -print0)
+
+# Delete each file that was installed
+for FILE in "${FILE_LIST[@]}"; do
+	rm "$FILE"
+	echo "rm $FILE"
+done
+
+find debs -type f | while read d; do
+	PACKAGE=$(dpkg -I "${d}" | grep Package | awk '{print $2}')
+	echo "apt remove ${PACKAGE}"
+	DEBIAN_FRONTEND=noninteractive apt remove -y "${PACKAGE}"
+done
+
+HOSTNAME=$(hostname -s)
+

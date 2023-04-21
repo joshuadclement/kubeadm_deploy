@@ -37,5 +37,4 @@ find debs -type f | while read d; do
 	DEBIAN_FRONTEND=noninteractive apt remove -y "${PACKAGE}"
 done
 
-HOSTNAME=$(hostname -s)
-
+rm -rf customfiles

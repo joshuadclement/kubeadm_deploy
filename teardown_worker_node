@@ -1,7 +1,19 @@
 #!/bin/bash
 
-# ssh to control plane and drain this node
+CONTROL_HOSTNAME=$(jq < env.json -r '.control_hostname')
+HOSTNAME=$(hostname -s)
 
-kubeadm reset > /var/log/kubeadm_reset.txt
+# Check whether this node exists as a worker node in the cluster
+ssh "${CONTROL_HOSTNAME}" kubectl get nodes | grep "${HOSTNAME}"
+if [[ "$?" == 0 ]]; then
+	# ssh to control plane and drain this node
+	ssh "${CONTROL_HOSTNAME}" kubectl drain "${HOSTNAME}" --delete-emptydir-data --force --ignore-daemonsets
 
-# ssh to control plane node and `kubectl delete node thisnode`
+	# Clean up the node here
+	kubeadm reset
+
+	# Delete the node from the control plane
+	ssh "${CONTROL_HOSTNAME}" kubectl delete node "${HOSTNAME}"
+else
+	echo "This isn't a worker node in the cluster. Continuing to clean up files"
+fi

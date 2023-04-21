@@ -1,6 +1,22 @@
 #!/bin/bash
 
-# Check whether all worker nodes have been removed, wait until they are
+HOSTNAME=$(hostname -s)
+# Check whether there is a cluster running
+kubectl get nodes | grep "${HOSTNAME}"
+if [[ "$?" == 0 ]]; then
+	# Check whether all worker nodes have been removed, wait until they are
+	while true; do
+		NODE_COUNT=$(kubectl get nodes | wc -l)
+		if [[ $NODE_COUNT < 3 ]]; then
+			echo "No worker nodes left, continue to reset control plane."
+			break
+		else
+			echo "Waiting for worker nodes to be deleted before resetting control plane. Sleeping for 10 seconds."
+			sleep 10
+		fi
+	done
 
-
-kubeadm reset
+	kubeadm reset
+else
+	echo "The control plane isn't running, continuing to clean up files"
+fi

@@ -1,25 +1,17 @@
 #!/bin/bash
 
-
-tftpget() {
-	echo "fetching ${1}..."
-	# Fetch the file
-  tftp 10.0.0.1 -c get kubernetes/"${1}"
-	# Separate the relative path from the filename
-	FILEPATH=$(echo "${1}" | sed 's/\/[^/]*$//')
-	# If there is a '/' anywhere in the relative path of the file,
-	if [[ "${FILEPATH}" != "${1}" ]]; then
-		FILENAME=$(echo "${1}" | awk -F / '{print $NF}')
-		mkdir -p "${FILEPATH}"
-		mv "${FILENAME}" "${1}"
-	fi
-	echo "done"
-}
-
-JOIN_CMD=$(ssh miniworker2 cat /etc/kubernetes/join-command)
+CONTROL_HOSTNAME=$(jq < env.json -r '.control_hostname')
 CONTROL_IP=$(jq < env.json -r '.control_ip')
 REGEX="kubeadm join ${CONTROL_IP}:6443 --token [a-zA-Z0-9.]* --discovery-token-ca-cert-hash sha256:[a-zA-Z0-9]*"
-echo "${REGEX}"
-if [[ ${JOIN_CMD} =~ ${REGEX} ]]; then
-	eval "${JOIN_CMD}" > /var/log/kubadm_join.txt
-fi
+while true; do
+	JOIN_CMD=$(ssh "${CONTROL_HOSTNAME}" cat /etc/kubernetes/join-command)
+	if [[ ${JOIN_CMD} =~ ${REGEX} ]]; then
+		echo "Got valid join command"
+		echo "${JOIN_CMD}"
+		eval "${JOIN_CMD}"
+		break
+	else
+		echo "Join command not ready. Trying again in 10 seconds"
+		sleep 10
+	fi
+done

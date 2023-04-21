@@ -4,18 +4,22 @@
 #apt install -y iptables-persistent tftp-hpa j2cli net-tools jq nfs-common socat conntrack ipset
 
 tftpget() {
-	echo "fetching ${1}..."
-	# Fetch the file
-  tftp 10.0.0.1 -c get kubernetes/"${1}"
-	# Separate the relative path from the filename
-	FILEPATH=$(echo "${1}" | sed 's/\/[^/]*$//')
-	# If there is a '/' anywhere in the relative path of the file,
-	if [[ "${FILEPATH}" != "${1}" ]]; then
-		FILENAME=$(echo "${1}" | awk -F / '{print $NF}')
-		mkdir -p "${FILEPATH}"
-		mv "${FILENAME}" "${1}"
+	if [[ -f "${1}" ]]; then
+		echo "${1} Exists locally, continuing..."
+	else
+		echo "fetching ${1} from the tftp server..."
+		# Fetch the file
+		tftp 10.0.0.1 -c get kubernetes/"${1}"
+		# Separate the relative path from the filename
+		FILEPATH=$(echo "${1}" | sed 's/\/[^/]*$//')
+		# If there is a '/' anywhere in the relative path of the file,
+		if [[ "${FILEPATH}" != "${1}" ]]; then
+			FILENAME=$(echo "${1}" | awk -F / '{print $NF}')
+			mkdir -p "${FILEPATH}"
+			mv "${FILENAME}" "${1}"
+		fi
+		echo "done"
 	fi
-	echo "done"
 }
 
 add_json_val() {
@@ -146,7 +150,7 @@ CRICTL_VERSION=$(jq < env.json -r '.versions.crictl')
 tftpget downloads/crictl-v"${CRICTL_VERSION}"-linux-amd64.tar.gz
 tar -xvf downloads/crictl-v"${CRICTL_VERSION}"-linux-amd64.tar.gz
 chmod +x crictl
-cp crictl customfiles/usr/local/bin
+mv crictl customfiles/usr/local/bin
 echo "Installed crictl"
 
 # CNI plugins

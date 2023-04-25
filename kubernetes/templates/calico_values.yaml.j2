@@ -1,0 +1,18 @@
+installation:
+  enabled: true
+  kubernetesProvider: ""
+  cni:
+    type: Calico
+  calicoNetwork:
+    bgp: Disabled
+    ipPools:
+{%- for node in node_hostnames %}
+      - blockSize: 26
+        cidr: {{ pod_subnets[node] }}
+        encapsulation: VXLANCrossSubnet
+        natOutgoing: Enabled
+        nodeSelector: kubernetes.io/hostname == "{{ node }}"
+{%- endfor %}
+      - cidr: {{ vlan_subnet_cidr }}
+        nodeSelector: kubernetes.io/hostname == "disabled"
+        natOutgoing: Disabled

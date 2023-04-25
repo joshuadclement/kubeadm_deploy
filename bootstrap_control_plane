@@ -3,7 +3,7 @@
 mkdir -p \
 			customfiles/home/user/.kube \
 			customfiles/root/.kube \
-			customfiles/etc/kubernetes
+			customfiles/etc/kubernetes/helm_values
 
 tftpget() {
 	if [[ -f "${1}" ]]; then
@@ -45,12 +45,26 @@ kubeadm init --config customfiles/etc/kubernetes/kubeadm-config.yaml 2>&1
 cp /etc/kubernetes/admin.conf customfiles/home/user/.kube/config
 chown user:user customfiles/home/user/.kube/config
 cp /etc/kubernetes/admin.conf customfiles/root/.kube/config
+rsync -rp customfiles/ /
+
+# Install calico
+CALICO_VERSION=$(jq < env.json -r '.versions.calico')
+helm repo add projectcalico https://docs.tigera.io/calico/charts
+tftpget templates/calico_values.yaml.j2
+j2 -f json templates/calico_values.yaml.j2 env.json > customfiles/etc/kubernetes/helm_values/calico_values.yaml
+kubectl create namespace tigera-operator
+helm install calico projectcalico/tigera-operator --version v"${CALICO_VERSION}" -f customfiles/etc/kubernetes/helm_values/calico_values.yaml --namespace tigera-operator
+
+tftpget downloads/calicoctl-linux-amd64
+chmod +x downloads/calicoctl-linux-amd64
+cp downloads/calicoctl-linux-amd64 customfiles/usr/local/bin/calicoctl
+
 
 # Make token and join command for worker nodes
 kubeadm token create --ttl 0 --print-join-command > customfiles/etc/kubernetes/join-command
 chmod 0600 customfiles/etc/kubernetes/join-command
 
+
 # Copy all files from customfiles into system folders
 rsync -rp customfiles/ /
-
-# Do stuff until heard from all worker nodes?
+# At this point, worker nodes will be able to join the cluster by copying the join command via ssh

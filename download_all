@@ -10,12 +10,21 @@ CRIO_RUNC_VERSION=$(jq < kubernetes/env.json -r '.versions.crio_runc')
 CRIO_RUNC_TILDE_VERSION=$(jq < kubernetes/env.json -r '.versions.crio_runc_tilde')
 CRICTL_VERSION=$(jq < kubernetes/env.json -r '.versions.crictl')
 CNI_VERSION=$(jq < kubernetes/env.json -r '.versions.cni')
+CALICO_VERSION=$(jq < kubernetes/env.json -r '.versions.calico')
 [[ -d kubernetes/downloads ]] || mkdir kubernetes/downloads
 cd kubernetes/downloads
 
+# get_if_not_present(url, optional saved filename)
 get_if_not_present() {
 	FILENAME=$(echo "${1}" | sed 's/^.*\///')
-	[[ -f "${FILENAME}" ]] || wget "${1}"
+	if [[ "${2}" == "" ]]; then
+		[[ -f "${FILENAME}" ]] || wget "${1}"
+	else
+		if [[ ! -f "${2}" ]]; then
+			wget "${1}"
+			mv "${FILENAME}" "${2}"
+		fi
+	fi
 }
 
 # check the hashes when the *.sha256 file only includes the hash, not formatted for `sha256sum -c`
@@ -78,6 +87,14 @@ verify_ubuntu() {
 verify_ubuntu https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/"${CRIO_DIR_VERSION}":/"${CRIO_VERSION}"/xUbuntu_22.04 cri-o_"${CRIO_VERSION}"~0_amd64.deb cri-o
 verify_ubuntu https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_22.04/ cri-o-runc_"${CRIO_RUNC_VERSION}"~"${CRIO_RUNC_TILDE_VERSION}"_amd64.deb cri-o-runc
 
+# Calicoctl
+########################################################################################################
+get_if_not_present https://github.com/projectcalico/calico/releases/download/v"${CALICO_VERSION}"/calicoctl-linux-amd64
+get_if_not_present https://github.com/projectcalico/calico/releases/download/v"${CALICO_VERSION}"/SHA256SUMS calicoctl_sha256sums
+grep linux-amd64 calicoctl_sha256sums | sha256sum -c || {
+	echo "Failed checksum for calicoctl" && exit 1
+}
+
 # For all nodes
 ########################################################################################################
 
@@ -101,4 +118,3 @@ for file in "kubectl" "kubeadm" "kubelet"; do
 	get_if_not_present https://dl.k8s.io/v"${KUBERNETES_VERSION}"/bin/linux/amd64/"${file}".sha256
 	check_unformatted "${file}"
 done
-

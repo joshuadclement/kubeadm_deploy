@@ -3,6 +3,7 @@ apiVersion: kubeadm.k8s.io/v1beta3
 kubernetesVersion: v{{ versions.kubernetes }}
 networking:
   podSubnet: {{ cluster_range }}
+  serviceSubnet: {{ service_subnet }}
 ---
 kind: KubeletConfiguration
 apiVersion: kubelet.config.k8s.io/v1beta1

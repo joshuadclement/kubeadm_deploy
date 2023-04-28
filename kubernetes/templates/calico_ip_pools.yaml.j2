@@ -1,0 +1,20 @@
+apiVersion: projectcalico.org/v3
+kind: IPPool
+metadata:
+  name: sciencedata-no-nat
+spec:
+  cidr: {{ vlan_subnet_cidr }}
+  disabled: true
+---
+{%- for host in node_hostnames %}
+apiVersion: projectcalico.org/v3
+kind: IPPool
+metadata:
+  name: ippool-{{ host }}
+spec:
+  cidr: {{ pod_subnets[host] }}
+  nodeSelector: kubernetes.io/hostname == "{{ host }}"
+  vxlanMode: CrossSubnet
+  natOutgoing: True
+---
+{%- endfor %}

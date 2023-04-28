@@ -8,6 +8,7 @@ CRIO_VERSION=$(jq < kubernetes/env.json -r '.versions.crio')
 CRIO_DIR_VERSION=$(jq < kubernetes/env.json -r '.versions.crio_dir')
 CRIO_RUNC_VERSION=$(jq < kubernetes/env.json -r '.versions.crio_runc')
 CRIO_RUNC_TILDE_VERSION=$(jq < kubernetes/env.json -r '.versions.crio_runc_tilde')
+CONMON_VERSION=$(jq < kubernetes/env.json -r '.versions.conmon')
 CRICTL_VERSION=$(jq < kubernetes/env.json -r '.versions.crictl')
 CNI_VERSION=$(jq < kubernetes/env.json -r '.versions.cni')
 CALICO_VERSION=$(jq < kubernetes/env.json -r '.versions.calico')
@@ -46,6 +47,7 @@ sha256sum -c helm-v"${HELM_VERSION}"-linux-amd64.tar.gz.sha256sum || {
 
 # Cri-o
 ########################################################################################################
+# verify_ubuntu(repo directory, deb filename, downloads subfolder)
 verify_ubuntu() {
 	[[ -d "${3}" ]] || mkdir "${3}"
 	cd "${3}"
@@ -86,6 +88,8 @@ verify_ubuntu() {
 
 verify_ubuntu https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/"${CRIO_DIR_VERSION}":/"${CRIO_VERSION}"/xUbuntu_22.04 cri-o_"${CRIO_VERSION}"~0_amd64.deb cri-o
 verify_ubuntu https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_22.04/ cri-o-runc_"${CRIO_RUNC_VERSION}"~"${CRIO_RUNC_TILDE_VERSION}"_amd64.deb cri-o-runc
+## Very important to get this version of conmon, the outdated one in ubuntu repos is incompatible
+verify_ubuntu https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_22.04/ conmon_"${CONMON_VERSION}"~0_amd64.deb conmon
 
 # Calicoctl
 ########################################################################################################

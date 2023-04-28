@@ -1,5 +1,6 @@
 #!/bin/bash
 
+HOSTNAME=$(hostname -s)
 CONTROL_HOSTNAME=$(jq < env.json -r '.control_hostname')
 CONTROL_IP=$(jq < env.json -r '.control_ip')
 REGEX="kubeadm join ${CONTROL_IP}:6443 --token [a-zA-Z0-9.]* --discovery-token-ca-cert-hash sha256:[a-zA-Z0-9]*"
@@ -9,7 +10,12 @@ while true; do
 		echo "Got valid join command"
 		echo "${JOIN_CMD}"
 		eval "${JOIN_CMD}"
+		# After joining, if this node has a public IP address, then label the node correctly
+		if [[ $(jq < env.json '.public_network_configs | has ("'"${HOSTNAME}"'")') == true ]]; then
+			sleep 10
+			ssh "${CONTROL_HOSTNAME}" kubectl label node "${HOSTNAME}" hasPublicIP="true"
 		break
+		fi
 	else
 		echo "Join command not ready. Trying again in 10 seconds"
 		sleep 10

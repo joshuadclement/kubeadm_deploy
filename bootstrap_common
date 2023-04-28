@@ -1,7 +1,8 @@
 #! /bin/bash
 
 # install dependencies
-#apt install -y iptables-persistent tftp-hpa j2cli net-tools jq nfs-common socat conntrack ipset
+#apt install -y iptables-persistent tftp-hpa j2cli net-tools jq nfs-common socat conntrack ipset grepcidr python3-pip
+#snap install yq
 
 tftpget() {
 	if [[ -f "${1}" ]]; then
@@ -139,10 +140,14 @@ CRIO_DIR_VERSION=$(jq < env.json -r '.versions.crio_dir')
 CRIO_RUNC_VERSION=$(jq < env.json -r '.versions.crio_runc')
 CRIO_RUNC_TILDE_VERSION=$(jq < env.json -r '.versions.crio_runc_tilde')
 CRIO_VERSION=$(jq < env.json -r '.versions.crio')
+CONMON_VERSION=$(jq < env.json -r '.versions.conmon')
 tftpget downloads/cri-o/cri-o_"${CRIO_VERSION}"~0_amd64.deb
 tftpget downloads/cri-o-runc/cri-o-runc_"${CRIO_RUNC_VERSION}"~"${CRIO_RUNC_TILDE_VERSION}"_amd64.deb
+tftpget downloads/conmon/conmon_"${CONMON_VERSION}"~0_amd64.deb
 mkdir -p debs
-cp downloads/cri-o/cri-o_"${CRIO_VERSION}"~0_amd64.deb downloads/cri-o-runc/cri-o-runc_"${CRIO_RUNC_VERSION}"~"${CRIO_RUNC_TILDE_VERSION}"_amd64.deb debs
+cp downloads/conmon/conmon_"${CONMON_VERSION}"~0_amd64.deb debs/01_conmon_"${CONMON_VERSION}"~0_amd64.deb
+cp downloads/cri-o-runc/cri-o-runc_"${CRIO_RUNC_VERSION}"~"${CRIO_RUNC_TILDE_VERSION}"_amd64.deb debs/02_cri-o-runc_"${CRIO_RUNC_VERSION}"~"${CRIO_RUNC_TILDE_VERSION}"_amd64.deb
+cp downloads/cri-o/cri-o_"${CRIO_VERSION}"~0_amd64.deb debs/03_cri-o_"${CRIO_VERSION}"~0_amd64.deb
 
 # Crictl
 ##################################################################################

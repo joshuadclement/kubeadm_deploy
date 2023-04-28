@@ -3,7 +3,10 @@
 mkdir -p \
 			customfiles/home/user/.kube \
 			customfiles/root/.kube \
-			customfiles/etc/kubernetes/helm_values
+			customfiles/etc/kubernetes/helm_values \
+			customfiles/etc/kubernetes/custom_manifests \
+			customfiles/etc/kubernetes/manually_apply \
+			customfiles/etc/kubernetes/custom_manifests/docker_registry
 
 tftpget() {
 	if [[ -f "${1}" ]]; then
@@ -46,8 +49,10 @@ cp /etc/kubernetes/admin.conf customfiles/home/user/.kube/config
 chown user:user customfiles/home/user/.kube/config
 cp /etc/kubernetes/admin.conf customfiles/root/.kube/config
 rsync -rp customfiles/ /
+chown user:user /home/user/.kube/config
 
 # Install calico
+##########################################################################################
 CALICO_VERSION=$(jq < env.json -r '.versions.calico')
 helm repo add projectcalico https://docs.tigera.io/calico/charts
 tftpget templates/calico_values.yaml.j2
@@ -59,12 +64,94 @@ tftpget downloads/calicoctl-linux-amd64
 chmod +x downloads/calicoctl-linux-amd64
 cp downloads/calicoctl-linux-amd64 customfiles/usr/local/bin/calicoctl
 
+rsync -rp customfiles/ /
+
+# Configure IPpools
+tftpget templates/calico_ip_pools.yaml.j2
+j2 -f json templates/calico_ip_pools.yaml.j2 env.json > customfiles/etc/kubernetes/custom_manifests/calico_ip_pools.yaml
+calicoctl delete ippool default-ipv4-ippool
+calicoctl apply -f customfiles/etc/kubernetes/custom_manifests/calico_ip_pools.yaml
+# Delete pods with an IP address in the cluster range
+# These should just be calico and coredns pods, and their deployments/daemonsets will schedule new ones.
+# The new ones will be inside the new, correct IPpools.
+CLUSTER_RANGE=$(jq < env.json -r '.cluster_range')
+kubectl get pods --all-namespaces -o wide | grepcidr "${CLUSTER_RANGE}" | while read p; do
+	NAMESPACE=$(echo "${p}" | awk '{print $1}')
+	PODNAME=$(echo "${p}" | awk '{print $2}')
+	kubectl delete pod -n "${NAMESPACE}" "${PODNAME}"
+done
+
+# Set taint on control plane correctly
+HOSTNAME=$(hostname -s)
+kubectl taint nodes "${HOSTNAME}" node-role.kubernetes.io/control-plane:NoSchedule-
+kubectl taint nodes "${HOSTNAME}" --overwrite node-role.kubernetes.io/control-plane:PreferNoSchedule
+
 
 # Make token and join command for worker nodes
+##########################################################################################
 kubeadm token create --ttl 0 --print-join-command > customfiles/etc/kubernetes/join-command
 chmod 0600 customfiles/etc/kubernetes/join-command
-
 
 # Copy all files from customfiles into system folders
 rsync -rp customfiles/ /
 # At this point, worker nodes will be able to join the cluster by copying the join command via ssh
+
+# Wait for calico to be ready
+kubectl --namespace calico-system wait --for=condition=Available deployments/calico-kube-controllers --timout=10m
+
+create_namespaces_for_manifest() {
+	yq e '.metadata.namespace' < "${1}" | grep -v -- --- | grep -v null | while read n; do
+		kubectl create namespace "${n}"
+	done
+}
+
+# Apply network policies
+##########################################################################################
+tftpget templates/network_policies.yaml.j2
+j2 -f json templates/network_policies.yaml.j2 env.json > customfiles/etc/kubernetes/custom_manifests/network_policies.yaml
+# Create all the namespaces that need to be there in order to apply this manifest
+create_namespaces_for_manifest customfiles/etc/kubernetes/custom_manifests/network_policies.yaml
+kubectl apply -f customfiles/etc/kubernetes/custom_manifests/network_policies.yaml
+
+
+# Ingress
+##########################################################################################
+# Before it can be applied, there has to be a worker node with a public IP address
+while true; do
+	FOUND=$(kubectl get nodes -o json | jq -r '.items[].metadata.labels.hasPublicIP' | while read p; do
+		if [[ $p == true ]]; then
+			echo "true"
+			break
+		fi
+	done)
+	if [[ $FOUND == true ]]; then
+		echo "There is now a node with a public IP address in the cluster. Proceeding to install ingress controller."
+		break
+	fi
+	sleep 10
+	echo "Waiting for a node with a public IP to be available..."
+done
+
+# Ingress controller
+helm repo add k8s-ingress-nginx https://kubernetes.github.io/ingress-nginx
+tftpget templates/ingress_values.yaml
+cp templates/ingress_values.yaml customfiles/etc/kubernetes/helm_values/ingress_values.yaml
+helm install -f customfiles/etc/kubernetes/helm_values/ingress_values.yaml ingress-nginx k8s-ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace
+
+# Cert manager
+helm repo add jetstack https://charts.jetstack.io
+tftpget templates/cert_manager_values.yaml
+cp templates/cert_manager_values.yaml customfiles/etc/kubernetes/helm_values/cert_manager_values.yaml
+helm install -f customfiles/etc/kubernetes/helm_values/cert_manager_values.yaml cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace
+
+tftpget templates/cluster_issuer.yaml.j2
+j2 -f json templates/cluster_issuer.yaml.j2 env.json > customfiles/etc/kubernetes/custom_manifests/cluster_issuer.yaml
+kubectl apply -f customfiles/etc/kubernetes/custom_manifests/cluster_issuer.yaml
+
+# Apply backed up secrets if exist
+tftpget backup/certs.yaml
+if [[ -s backup/certs.yaml ]]; then
+	echo "Applying saved certificates from a previous cluster"
+	create_namespaces_for_manifest backup/certs.yaml
+	kubectl apply -f backup/certs.yaml
+fi

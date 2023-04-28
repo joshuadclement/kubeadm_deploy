@@ -6,19 +6,12 @@ network:
       dhcp4: no
       addresses:
         - {{ trusted_network_ips[this_hostname] }}/24
-      routes:
 {%- if not public_network_configs[this_hostname] is defined %}
+      routes:
         - via: {{ trusted_network_gateway }}
           on-link: true
           to: default
 {%- endif %}
-{%- for node in node_hostnames %}
-{%- if node != this_hostname %}
-        - via: {{ trusted_network_ips[node] }}
-          on-link: true
-          to: {{ pod_subnets[node] }}
-{%- endif %}
-{%- endfor %}
       nameservers:
         addresses:
           - {{ trusted_network_nameserver }}

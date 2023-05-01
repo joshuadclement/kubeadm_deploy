@@ -1,3 +1,4 @@
 kubernetes/configs
 kubernetes/downloads
 kubernetes/ssh
+kubernetes/secrets

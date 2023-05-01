@@ -1,7 +1,7 @@
 #! /bin/bash
 
 # install dependencies
-#apt install -y iptables-persistent tftp-hpa j2cli net-tools jq nfs-common socat conntrack ipset grepcidr python3-pip
+#apt install -y iptables-persistent tftp-hpa j2cli net-tools jq nfs-common socat conntrack ipset grepcidr python3-pip apache2-utils
 #snap install yq
 
 tftpget() {
@@ -63,6 +63,10 @@ tftpget templates/rules.v4.j2
 j2 -f json templates/rules.v4.j2 env.json > /etc/iptables/rules.v4
 iptables -F && iptables -t nat -F && iptables -t mangle -F && iptables -X && iptables-restore < /etc/iptables/rules.v4
 echo "Configured iptables"
+
+# set etc/hosts
+tftpget templates/etchosts.j2
+j2 -f json templates/etchosts.j2 env.json > /etc/hosts
 
 # configure ssh
 ##########################################################################################

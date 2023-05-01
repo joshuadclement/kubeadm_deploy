@@ -6,7 +6,8 @@ mkdir -p \
 			customfiles/etc/kubernetes/helm_values \
 			customfiles/etc/kubernetes/custom_manifests \
 			customfiles/etc/kubernetes/manually_apply \
-			customfiles/etc/kubernetes/custom_manifests/docker_registry
+			customfiles/etc/kubernetes/custom_manifests/docker_registry \
+			customfiles/etc/kubernetes/custom_manifests/acmedns
 
 tftpget() {
 	if [[ -f "${1}" ]]; then
@@ -30,6 +31,7 @@ tftpget() {
 
 # Helm
 ##########################################################################################
+echo "Installing helm"
 HELM_VERSION=$(jq < env.json -r '.versions.helm')
 tftpget downloads/helm-v"${HELM_VERSION}"-linux-amd64.tar.gz
 mkdir helm
@@ -53,6 +55,7 @@ chown user:user /home/user/.kube/config
 
 # Install calico
 ##########################################################################################
+echo "Installing calico"
 CALICO_VERSION=$(jq < env.json -r '.versions.calico')
 helm repo add projectcalico https://docs.tigera.io/calico/charts
 tftpget templates/calico_values.yaml.j2
@@ -67,6 +70,7 @@ cp downloads/calicoctl-linux-amd64 customfiles/usr/local/bin/calicoctl
 rsync -rp customfiles/ /
 
 # Configure IPpools
+echo "Configuring IP pools"
 tftpget templates/calico_ip_pools.yaml.j2
 j2 -f json templates/calico_ip_pools.yaml.j2 env.json > customfiles/etc/kubernetes/custom_manifests/calico_ip_pools.yaml
 calicoctl delete ippool default-ipv4-ippool
@@ -94,10 +98,11 @@ chmod 0600 customfiles/etc/kubernetes/join-command
 
 # Copy all files from customfiles into system folders
 rsync -rp customfiles/ /
+echo "Ready for worker nodes to join cluster"
 # At this point, worker nodes will be able to join the cluster by copying the join command via ssh
 
 # Wait for calico to be ready
-kubectl --namespace calico-system wait --for=condition=Available deployments/calico-kube-controllers --timout=10m
+kubectl --namespace calico-system wait --for=condition=Available deployments/calico-kube-controllers --timeout=10m
 
 create_namespaces_for_manifest() {
 	yq e '.metadata.namespace' < "${1}" | grep -v -- --- | grep -v null | while read n; do
@@ -107,6 +112,7 @@ create_namespaces_for_manifest() {
 
 # Apply network policies
 ##########################################################################################
+echo "Applying network policies"
 tftpget templates/network_policies.yaml.j2
 j2 -f json templates/network_policies.yaml.j2 env.json > customfiles/etc/kubernetes/custom_manifests/network_policies.yaml
 # Create all the namespaces that need to be there in order to apply this manifest
@@ -133,12 +139,14 @@ while true; do
 done
 
 # Ingress controller
+echo "Installing ingress controller"
 helm repo add k8s-ingress-nginx https://kubernetes.github.io/ingress-nginx
 tftpget templates/ingress_values.yaml
 cp templates/ingress_values.yaml customfiles/etc/kubernetes/helm_values/ingress_values.yaml
 helm install -f customfiles/etc/kubernetes/helm_values/ingress_values.yaml ingress-nginx k8s-ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace
 
 # Cert manager
+echo "Installing cert manager"
 helm repo add jetstack https://charts.jetstack.io
 tftpget templates/cert_manager_values.yaml
 cp templates/cert_manager_values.yaml customfiles/etc/kubernetes/helm_values/cert_manager_values.yaml
@@ -149,9 +157,70 @@ j2 -f json templates/cluster_issuer.yaml.j2 env.json > customfiles/etc/kubernete
 kubectl apply -f customfiles/etc/kubernetes/custom_manifests/cluster_issuer.yaml
 
 # Apply backed up secrets if exist
-tftpget backup/certs.yaml
-if [[ -s backup/certs.yaml ]]; then
+tftpget secrets/backup_certs.yaml
+if [[ -s secrets/backup_certs.yaml ]]; then
 	echo "Applying saved certificates from a previous cluster"
-	create_namespaces_for_manifest backup/certs.yaml
-	kubectl apply -f backup/certs.yaml
+	create_namespaces_for_manifest secrets/backup_certs.yaml
+	kubectl apply -f secrets/backup_certs.yaml
 fi
+
+# Docker registry
+##########################################################################################
+
+echo "Installing docker registry"
+tftpget secrets/docker_registry_admin_password
+DOCKER_REGISTRY_ADMIN_PASSWORD=$(cat secrets/docker_registry_admin_password)
+htpasswd -b -c customfiles/etc/kubernetes/custom_manifests/docker_registry/docker_htpasswd admin "${DOCKER_REGISTRY_ADMIN_PASSWORD}"
+export DOCKER_REGISTRY_HTPASSWD_B64=$(cat customfiles/etc/kubernetes/custom_manifests/docker_registry/docker_htpasswd | base64 -w 0)
+
+export DOCKER_REGISTRY_LOGIN_STRING_B64=$(echo -n "admin:${DOCKER_REGISTRY_ADMIN_PASSWORD}" | base64 -w 0)
+tftpget templates/docker_registry_login_config.json.j2
+j2 -f json templates/docker_registry_login_config.json.j2 env.json > customfiles/etc/kubernetes/custom_manifests/docker_registry/docker_registry_login_config.json
+export DOCKER_REGISTRY_LOGIN_CONFIG_B64=$(cat customfiles/etc/kubernetes/custom_manifests/docker_registry/docker_registry_login_config.json | base64 -w 0)
+
+tftpget templates/docker_registry.yaml.j2
+j2 -f json templates/docker_registry.yaml.j2 env.json > customfiles/etc/kubernetes/custom_manifests/docker_registry.yaml
+
+
+# Acmedns
+##########################################################################################
+
+echo "Installing acmedns"
+tftpget templates/deploy_acmedns.yaml.j2
+j2 -f json templates/deploy_acmedns.yaml.j2 env.json > customfiles/etc/kubernetes/custom_manifests/deploy_acmedns.yaml
+# Deploy the acmedns server and wait for it to be available
+kubectl apply -f customfiles/etc/kubernetes/custom_manifests/deploy_acmedns.yaml
+kubectl --namespace acme-dns wait --for=condition=Available deployments/acme-dns --timeout=10m
+
+# Apply backed up secrets if exist
+for filename in "acmedns_sdpods.json" "acmedns_sdtestpods.json"; do
+	tftpget secrets/"${filename}"
+	if [[ -s secrets/"${filename}" ]]; then
+		echo "Found backup of ${filename} from a previous cluster, copying it."
+		cp secrets/"${filename}" customfiles/etc/kubernetes/custom_manifests/acmedns/"${filename}"
+	else
+		echo "No backup of ${filename} found, registering the new subdomain with the acmedns server."
+		# If there is no backed up registration, then curl the server to create one
+		ACMEDNS_HOSTNAME=$(jq < env.json -r '.acmedns.hostname')
+		TRUSTED_NETWORK_CIDR=$(jq < env.json -r '.trusted_network_cidr')
+		VLAN_SUBNET_CIDR=$(jq < env.json -r '.vlan_subnet_cidr')
+		CLUSTER_RANGE=$(jq < env.json -r '.cluster_range')
+		ACMEDNS_PUBLIC_IP=$(jq < env.json -r '{n: .acmedns.node_hostname, p: .public_network_configs | to_entries[]} | select(.p.key == .n) | .p.value.address')
+		curl -X POST http://"${ACMEDNS_HOSTNAME}"/register \
+				 -H "CONTENT TYPE: application/json" \
+				 --data '{"allowfrom": ["'"${ACMEDNS_PUBLIC_IP}"'/32", "127.0.0.0/8", "'"${TRUSTED_NETWORK_CIDR}"'", "'"${VLAN_SUBNET_CIDR}"'"]}' | \
+			tee "${filename}"
+		if [[ -s customfiles/etc/kubernetes/custom_manifests/acmedns/"${filename}" ]]; then
+			read -p "${filename} already found, are you sure you want to replace it with the newly generated one:
+"$(cat "${filename}")"
+[y/N]" -n 1 -r
+			if [[ $REPLY == y ]]; then
+				echo "Replacing saved ${filename} with the newly generated registration file."
+				mv "${filename}" customfiles/etc/kubernetes/custom_manifests/acmedns/"${filename}"
+			else
+				echo "Not replacing the existing ${filename}"
+			fi
+		fi
+	fi
+done
+

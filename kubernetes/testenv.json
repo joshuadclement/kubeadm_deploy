@@ -1,60 +1,65 @@
 {
     "acmedns": {
         "admin_email": "joshua.clement@deic.dk",
-        "hostname": "dns01.sciencedata.dk",
+        "hostname": "dns01.clement.tel",
         "host_http_port": "15380",
         "nfs_IP": "10.0.0.20",
-        "nfs_path": "/tank/storage/acmedns/prod",
-        "node_hostname": "kube",
-        "zone": "acme.sciencedata.dk"
+        "nfs_path": "/tank/storage/acmedns/test",
+        "node_hostname": "miniworker1",
+        "zone": "acme.clement.tel"
     },
     "authorized_keys": [
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFFaL0dy3Dq4DA5GCqFBKVWZntBSF0RIeVd9/qdhIj2n"
     ],
     "cluster_name": "sciencedatak8s",
-    "cluster_range": "10.192.0.0/11",
-    "control_hostname": "control",
-    "control_ip": "10.0.0.192",
+    "cluster_range": "10.224.0.0/11",
+    "control_hostname": "miniworker3",
+    "control_ip": "10.0.0.226",
     "docker_registry": {
-        "domain": "dockerregistry.sciencedata.dk",
+        "domain": "dockerregistry.clement.tel",
         "nfs_IP": "10.0.0.20",
-        "nfs_path": "/tank/storage/dockerregistry/prod",
-        "tls_secret": "tls-dockerregistry-sciencedata-dk"
+        "nfs_path": "/tank/storage/dockerregistry/test",
+        "tls_secret": "tls-dockerregistry-clement-tel"
     },
     "letsencrypt_email": "jodac@dtu.dk",
     "mac_addr_mappings": {
-        "90:b1:1c:7a:40:da": "control",
-        "ac:1f:6b:8d:17:14": "kube"
+        "ec:8e:b5:76:b5:d0": "miniworker1",
+        "c8:d3:ff:a0:f9:9e": "miniworker2",
+        "ec:8e:b5:78:85:27": "miniworker3"
     },
     "node_hostnames": [
-        "control",
-        "kube"
+        "miniworker1",
+        "miniworker2",
+        "miniworker3"
     ],
     "pod_subnets": {
-        "control": "10.192.0.0/16",
-        "kube": "10.193.0.0/16"
+        "miniworker1": "10.224.0.0/16",
+        "miniworker2": "10.225.0.0/16",
+        "miniworker3": "10.226.0.0/16"
     },
     "public_network_configs": {
-        "kube": {
-            "interface": "enp129s0f1",
-            "address": "130.226.137.130",
+        "miniworker1": {
+            "interface": "enx7cc3a18700e0",
+            "address": "130.226.137.136",
             "netmask": "25",
             "gateway": "130.226.137.129"
-        }
+        },
     },
     "service_subnet": "10.96.0.0/12",
     "trusted_network_cidr": "10.0.0.0/24",
     "trusted_network_gateway": "10.0.0.1",
     "trusted_network_interfaces": {
-        "control": "enp129s0f0",
-        "kube": "enp129s0f0"
+        "miniworker1": "eno1",
+        "miniworker2": "eno1",
+        "miniworker3": "eno1"
     },
     "trusted_network_ips": {
-        "control": "10.0.0.192",
-        "kube": "10.0.0.193"
+        "miniworker1": "10.0.0.224",
+        "miniworker2": "10.0.0.225",
+        "miniworker3": "10.0.0.226"
     },
     "trusted_network_nameserver": "10.0.0.1",
-    "trusted_nodes_cidr": "10.0.0.192/27",
+    "trusted_nodes_cidr": "10.0.0.224/27",
     "versions": {
         "calico": "3.25.1",
         "cni": "1.2.0",
@@ -73,14 +78,17 @@
         "netmask": "24"
     },
     "vlan_network_addresses": {
-        "control": "10.2.0.192",
-        "kube": "10.2.0.193"
+        "miniworker1": "10.2.0.224",
+        "miniworker2": "10.2.0.225",
+        "miniworker3": "10.2.0.226"
     },
     "vlan_subnet_cidr": "10.2.0.0/24",
     "worker_hostnames": [
-        "kube"
+        "miniworker1",
+        "miniworker2"
     ],
     "worker_ips": {
-        "kube": "10.0.0.193"
+        "miniworker1": "10.0.0.224",
+        "miniworker2": "10.0.0.225"
     }
 }

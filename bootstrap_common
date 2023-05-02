@@ -1,8 +1,14 @@
 #! /bin/bash
 
+# If this was called on boot via rc.local, remove it so it won't be called on subsequent reboots
+if grep -q bootstrap_common /etc/rc.local; then
+	head -n -3 /etc/rc.local > tmprc.local
+	mv tmprc.local /etc/rc.local
+fi
+
 # install dependencies
-#apt install -y iptables-persistent tftp-hpa j2cli net-tools jq nfs-common socat conntrack ipset grepcidr python3-pip apache2-utils
-#snap install yq
+DEBIAN_FRONTEND=noninteractive apt install -y iptables-persistent tftp-hpa j2cli net-tools jq nfs-common socat conntrack ipset grepcidr python3-pip apache2-utils
+snap install yq
 
 tftpget() {
 	if [[ -f "${1}" ]]; then
@@ -88,8 +94,8 @@ j2 -f json templates/sshconfig.j2 env.json > /root/.ssh/config
 tftpget templates/authorized_keys.j2
 j2 -f json templates/authorized_keys.j2 env.json > /root/.ssh/authorized_keys
 chmod 0600 /root/.ssh/authorized_keys
-cp /root/.ssh/authorized_keys /home/user/.ssh/authorized_keys
-chown user:user /home/user/.ssh/authorized_keys
+#cp /root/.ssh/authorized_keys /home/user/.ssh/authorized_keys
+#chown user:user /home/user/.ssh/authorized_keys
 
 # Get the host key so that this host's sshd will use a key the other hosts will trust
 tftpget ssh/hostkey

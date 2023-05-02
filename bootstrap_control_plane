@@ -180,7 +180,7 @@ export DOCKER_REGISTRY_LOGIN_CONFIG_B64=$(cat customfiles/etc/kubernetes/custom_
 
 tftpget templates/docker_registry.yaml.j2
 j2 -f json templates/docker_registry.yaml.j2 env.json > customfiles/etc/kubernetes/custom_manifests/docker_registry.yaml
-
+# kubectl apply -f customfiles/etc/kubernetes/custom_manifests/docker_registry.yaml
 
 # Acmedns
 ##########################################################################################
@@ -210,7 +210,7 @@ for filename in "acmedns_sdpods.json" "acmedns_sdtestpods.json"; do
 				 -H "CONTENT TYPE: application/json" \
 				 --data '{"allowfrom": ["'"${ACMEDNS_PUBLIC_IP}"'/32", "127.0.0.0/8", "'"${TRUSTED_NETWORK_CIDR}"'", "'"${VLAN_SUBNET_CIDR}"'"]}' | \
 			tee "${filename}"
-		if [[ -s customfiles/etc/kubernetes/custom_manifests/acmedns/"${filename}" ]]; then
+		if [[ -s /etc/kubernetes/custom_manifests/acmedns/"${filename}" ]]; then
 			read -p "${filename} already found, are you sure you want to replace it with the newly generated one:
 "$(cat "${filename}")"
 [y/N]" -n 1 -r
@@ -220,7 +220,10 @@ for filename in "acmedns_sdpods.json" "acmedns_sdtestpods.json"; do
 			else
 				echo "Not replacing the existing ${filename}"
 			fi
+		else
+			mv "${filename}" customfiles/etc/kubernetes/custom_manifests/acmedns/"${filename}"
 		fi
 	fi
 done
 
+rsync -rp customfiles/ /

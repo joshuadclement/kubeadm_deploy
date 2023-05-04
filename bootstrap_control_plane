@@ -164,6 +164,9 @@ if [[ -s secrets/backup_certs.yaml ]]; then
 	kubectl apply -f secrets/backup_certs.yaml
 fi
 
+# Wait
+kubectl --namespace ingress-nginx wait --for=condition=Available deployments/ingress-nginx-controller --timeout=10m
+
 # Docker registry
 ##########################################################################################
 
@@ -203,13 +206,16 @@ for filename in "acmedns_sdpods.json" "acmedns_sdtestpods.json"; do
 		# If there is no backed up registration, then curl the server to create one
 		ACMEDNS_HOSTNAME=$(jq < env.json -r '.acmedns.hostname')
 		TRUSTED_NETWORK_CIDR=$(jq < env.json -r '.trusted_network_cidr')
-		VLAN_SUBNET_CIDR=$(jq < env.json -r '.vlan_subnet_cidr')
+		VLAN_NETWORK_CIDR=$(jq < env.json -r '.vlan_network_cidr')
 		CLUSTER_RANGE=$(jq < env.json -r '.cluster_range')
 		ACMEDNS_PUBLIC_IP=$(jq < env.json -r '{n: .acmedns.node_hostname, p: .public_network_configs | to_entries[]} | select(.p.key == .n) | .p.value.address')
 		curl -X POST http://"${ACMEDNS_HOSTNAME}"/register \
-				 -H "CONTENT TYPE: application/json" \
-				 --data '{"allowfrom": ["'"${ACMEDNS_PUBLIC_IP}"'/32", "127.0.0.0/8", "'"${TRUSTED_NETWORK_CIDR}"'", "'"${VLAN_SUBNET_CIDR}"'"]}' | \
+				 -H "Content-Type: application/json" \
+				 --data '{"allowfrom": ["'"${ACMEDNS_PUBLIC_IP}"'/32", "127.0.0.0/8", "'"${TRUSTED_NETWORK_CIDR}"'", "'"${VLAN_NETWORK_CIDR}"'"]}' | \
 			tee "${filename}"
+		# If this is run for the first time, it will just copy the registration file in,
+		# but it's possible to run this again after teardown.
+		# It's important to avoid losing the registration files because then new DNS records will be needed.
 		if [[ -s /etc/kubernetes/custom_manifests/acmedns/"${filename}" ]]; then
 			read -p "${filename} already found, are you sure you want to replace it with the newly generated one:
 "$(cat "${filename}")"

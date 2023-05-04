@@ -2,19 +2,19 @@ network:
   version: 2
   renderer: networkd
   ethernets:
-    {{ trusted_network_interfaces[this_hostname] }}:
+    {{ trusted_network_configs[this_hostname].interface }}:
       dhcp4: no
       addresses:
-        - {{ trusted_network_ips[this_hostname] }}/24
+        - {{ trusted_network_configs[this_hostname].address }}/{{ trusted_network_configs[this_hostname].netmask }}
 {%- if not public_network_configs[this_hostname] is defined %}
       routes:
-        - via: {{ trusted_network_gateway }}
+        - via: {{ trusted_network_configs[this_hostname].gateway }}
           on-link: true
           to: default
 {%- endif %}
       nameservers:
         addresses:
-          - {{ trusted_network_nameserver }}
+          - {{ trusted_network_configs[this_hostname].gateway }}
 {%- if public_network_configs[this_hostname] is defined %}
     {{ public_network_configs[this_hostname].interface }}:
       dhcp4: no
@@ -28,7 +28,7 @@ network:
   vlans:
     {{ vlan_config.interface }}:
       id: {{ vlan_config.id }}
-      link: {{ trusted_network_interfaces[this_hostname] }}
+      link: {{ trusted_network_configs[this_hostname].interface }}
       addresses:
-        - {{ vlan_network_addresses[this_hostname] }}/{{ vlan_config.netmask }}
+        - {{ vlan_config.addresses[this_hostname] }}/{{ vlan_config.netmask }}
 

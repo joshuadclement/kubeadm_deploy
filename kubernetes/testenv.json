@@ -14,7 +14,6 @@
     "cluster_name": "sciencedatak8s",
     "cluster_range": "10.224.0.0/11",
     "control_hostname": "miniworker3",
-    "control_ip": "10.0.0.226",
     "docker_registry": {
         "domain": "dockerregistry.clement.tel",
         "nfs_IP": "10.0.0.20",
@@ -39,26 +38,40 @@
     },
     "public_network_configs": {
         "miniworker1": {
-            "interface": "enx7cc3a18700e0",
             "address": "130.226.137.136",
-            "netmask": "25",
-            "gateway": "130.226.137.129"
+            "gateway": "130.226.137.129",
+            "interface": "enx30de4b1653d7",
+            "netmask": "25"
         },
+        "miniworker2": {
+            "address": "130.226.137.137",
+            "gateway": "130.226.137.129",
+            "interface": "enx30de4b163ebc",
+            "netmask": "25"
+        }
     },
     "service_subnet": "10.96.0.0/12",
     "trusted_network_cidr": "10.0.0.0/24",
-    "trusted_network_gateway": "10.0.0.1",
-    "trusted_network_interfaces": {
-        "miniworker1": "eno1",
-        "miniworker2": "eno1",
-        "miniworker3": "eno1"
+    "trusted_network_configs": {
+        "miniworker1": {
+            "address": "10.0.0.224",
+            "gateway": "10.0.0.1",
+            "interface": "eno1",
+            "netmask": "24"
+        },
+        "miniworker2": {
+            "address": "10.0.0.225",
+            "gateway": "10.0.0.1",
+            "interface": "eno1",
+            "netmask": "24"
+        },
+        "miniworker3": {
+            "address": "10.0.0.226",
+            "gateway": "10.0.0.1",
+            "interface": "eno1",
+            "netmask": "24"
+        }
     },
-    "trusted_network_ips": {
-        "miniworker1": "10.0.0.224",
-        "miniworker2": "10.0.0.225",
-        "miniworker3": "10.0.0.226"
-    },
-    "trusted_network_nameserver": "10.0.0.1",
     "trusted_nodes_cidr": "10.0.0.224/27",
     "versions": {
         "calico": "3.25.1",
@@ -73,22 +86,18 @@
         "kubernetes": "1.26.3"
     },
     "vlan_config": {
+        "addresses": {
+            "miniworker1": "10.2.0.224",
+            "miniworker2": "10.2.0.225",
+            "miniworker3": "10.2.0.226"
+        },
         "interface": "vlan300",
         "id": "300",
         "netmask": "24"
     },
-    "vlan_network_addresses": {
-        "miniworker1": "10.2.0.224",
-        "miniworker2": "10.2.0.225",
-        "miniworker3": "10.2.0.226"
-    },
-    "vlan_subnet_cidr": "10.2.0.0/24",
+    "vlan_network_cidr": "10.2.0.0/24",
     "worker_hostnames": [
         "miniworker1",
         "miniworker2"
     ],
-    "worker_ips": {
-        "miniworker1": "10.0.0.224",
-        "miniworker2": "10.0.0.225"
-    }
 }

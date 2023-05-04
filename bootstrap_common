@@ -94,8 +94,8 @@ j2 -f json templates/sshconfig.j2 env.json > /root/.ssh/config
 tftpget templates/authorized_keys.j2
 j2 -f json templates/authorized_keys.j2 env.json > /root/.ssh/authorized_keys
 chmod 0600 /root/.ssh/authorized_keys
-#cp /root/.ssh/authorized_keys /home/user/.ssh/authorized_keys
-#chown user:user /home/user/.ssh/authorized_keys
+cp /root/.ssh/authorized_keys /home/user/.ssh/authorized_keys
+chown user:user /home/user/.ssh/authorized_keys
 
 # Get the host key so that this host's sshd will use a key the other hosts will trust
 tftpget ssh/hostkey

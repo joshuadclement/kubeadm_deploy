@@ -1,6 +1,6 @@
-{% for hostname, ip in trusted_network_ips.items() %}
+{% for hostname, config in trusted_network_configs.items() %}
 Host {{ hostname }}
-  HostName {{ ip }}
+  HostName {{ config.address }}
   User root
   IdentityFile /root/.ssh/key
 {% endfor %}

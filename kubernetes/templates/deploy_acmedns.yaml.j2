@@ -59,7 +59,7 @@ metadata:
   namespace: acme-dns
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
-    nginx.ingress.kubernetes.io/whitelist-source-range: 127.0.0.0/8,{{ trusted_network_cidr }},{{ vlan_subnet_cidr }},{{ cluster_range }}
+    nginx.ingress.kubernetes.io/whitelist-source-range: 127.0.0.0/8,{{ trusted_network_cidr }},{{ vlan_network_cidr }},{{ cluster_range }}
 spec:
   tls:
   rules:

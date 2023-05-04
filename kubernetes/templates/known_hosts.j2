@@ -1,3 +1,3 @@
-{%- for hostname, ip in trusted_network_ips.items() %}
-{{ ip }} {{ ssh_host_pubkey }}
+{%- for hostname, config in trusted_network_configs.items() %}
+{{ config.address }} {{ ssh_host_pubkey }}
 {%- endfor %}

@@ -2,7 +2,7 @@
 
 HOSTNAME=$(hostname -s)
 CONTROL_HOSTNAME=$(jq < env.json -r '.control_hostname')
-CONTROL_IP=$(jq < env.json -r '.control_ip')
+CONTROL_IP=$(jq < env.json -r '{c: .control_hostname, t: .trusted_network_configs | to_entries[]} | select(.t.key == .c) | .t.value.address')
 REGEX="kubeadm join ${CONTROL_IP}:6443 --token [a-zA-Z0-9.]* --discovery-token-ca-cert-hash sha256:[a-zA-Z0-9]*"
 while true; do
 	JOIN_CMD=$(ssh "${CONTROL_HOSTNAME}" cat /etc/kubernetes/join-command)

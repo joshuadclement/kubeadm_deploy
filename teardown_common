@@ -38,3 +38,4 @@ find debs -type f | while read d; do
 done
 
 rm -rf customfiles
+rm -rf /var/lib/crio /etc/kubernetes /var/lib/kubelet /etc/cni/net.d /var/lib/etcd

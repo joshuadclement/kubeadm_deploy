@@ -1,9 +1,9 @@
 127.0.0.1 localhost
 127.0.1.1 {{ this_hostname }}
-{%- for key, value in trusted_network_ips.items() %}
-{{ value }} {{ key }}
+{%- for hostname, config in trusted_network_configs.items() %}
+{{ config.address }} {{ hostname }}
 {%- endfor %}
-{{ trusted_network_ips[acmedns.node_hostname] }} {{ acmedns.hostname }}
+{{ trusted_network_configs[acmedns.node_hostname].address }} {{ acmedns.hostname }}
 
 # The following lines are desirable for IPv6 capable hosts
 ::1     ip6-localhost ip6-loopback

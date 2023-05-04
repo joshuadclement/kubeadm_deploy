@@ -99,5 +99,5 @@
     "worker_hostnames": [
         "miniworker1",
         "miniworker2"
-    ],
+    ]
 }

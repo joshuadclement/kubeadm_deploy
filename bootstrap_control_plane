@@ -232,4 +232,15 @@ for filename in "acmedns_sdpods.json" "acmedns_sdtestpods.json"; do
 	fi
 done
 
+echo "Creating acmedns issuers for sciencedata and sciencedata-dev from the registration files"
+
+PODS_DOMAIN=$(jq < env.json -r '.user_pods.ingress_domain')
+TEST_PODS_DOMAIN=$(jq < env.json -r '.user_pods.test_ingress_domain')
+export SD_REGISTRATION=$(jq < customfiles/etc/kubernetes/custom_manifests/acmedns/acmedns_sdpods.json -c '{"'"${PODS_DOMAIN}"'": .}' | base64 -w 0)
+export SD_TEST_REGISTRATION=$(jq < customfiles/etc/kubernetes/custom_manifests/acmedns/acmedns_sdtestpods.json -c '{"'"${TEST_PODS_DOMAIN}"'": .}' | base64 -w 0)
+tftpget templates/acmedns_issuer.yaml.j2
+j2 -f json templates/acmedns_issuer.yaml.j2 env.json > customfiles/etc/kubernetes/custom_manifests/acmedns_issuer.yaml
+kubectl apply -f customfiles/etc/kubernetes/custom_manifests/acmedns_issuer.yaml
+
+
 rsync -rp customfiles/ /

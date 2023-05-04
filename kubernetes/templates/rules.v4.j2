@@ -8,6 +8,7 @@
 -A INPUT -p tcp -m tcp --dport 22 -j REJECT --reject-with icmp-port-unreachable
 -A INPUT -s {{ trusted_network_cidr }} -p tcp -m tcp --dport 6443 -j ACCEPT
 -A INPUT -p tcp -m tcp --dport 6443 -j REJECT --reject-with icmp-port-unreachable
+-A INPUT -p udp --dport 53 -j ACCEPT
 {% if trusted_network_interface is defined -%}
 -A INPUT -i {{ trusted_network_configs[this_hostname].interface }} -j ACCEPT
 {% endif -%}

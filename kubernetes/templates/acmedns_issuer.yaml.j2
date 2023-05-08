@@ -12,7 +12,7 @@ spec:
     solvers:
       - dns01:
           acmeDNS:
-            host: http://{{ acmedns.hostname }}
+            host: http://acme-dns-http.acme-dns.svc.cluster.local
             accountSecretRef:
               name: acme-dns-registration
               key: registration.json
@@ -31,7 +31,7 @@ spec:
     solvers:
       - dns01:
           acmeDNS:
-            host: http://{{ acmedns.hostname }}
+            host: http://acme-dns-http.acme-dns.svc.cluster.local
             accountSecretRef:
               name: acme-dns-registration
               key: registration.json
@@ -64,9 +64,9 @@ spec:
   issuerRef:
     name: user-pods-issuer
     kind: Issuer
-  commonName: "*.{{ user_pods.zone }}"
+  commonName: "*.{{ user_pods.ingress_domain }}"
   dnsNames:
-    - "*.{{ user_pods.zone }}"
+    - "*.{{ user_pods.ingress_domain }}"
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -78,6 +78,6 @@ spec:
   issuerRef:
     name: user-pods-issuer
     kind: Issuer
-  commonName: "*.{{ user_pods.testzone }}"
+  commonName: "*.{{ user_pods.test_ingress_domain }}"
   dnsNames:
-    - "*.{{ user_pods.testzone }}"
+    - "*.{{ user_pods.test_ingress_domain }}"

@@ -67,12 +67,11 @@ spec:
 # reverse proxy)
 ##########################################################################
 
-{% for ns in ['docker-registry', 'acme-dns'] %}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: reverse-proxy-only
-  namespace: {{ ns }}
+  namespace: docker-registry
 spec:
   policyTypes:
     - Egress
@@ -85,7 +84,6 @@ spec:
           matchLabels:
             name: ingress-nginx
 ---
-{% endfor %}
 
 ##########################################################################
 # The ingress controller (reverse proxy) should have only ingress from

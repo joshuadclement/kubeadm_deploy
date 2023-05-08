@@ -120,7 +120,7 @@ spec:
   tls:
     - hosts:
         - {{ docker_registry.domain }}
-      secretName: {{ docker_registry.tls_secret }}
+      secretName: tls-docker-registry
   rules:
     - host: {{ docker_registry.domain }}
       http:

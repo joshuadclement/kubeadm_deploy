@@ -1,5 +1,16 @@
 #!/bin/bash
 
+echo "Backing up tls secrets if they exist"
+kubectl get secret --all-namespaces --field-selector type=kubernetes.io/tls -o yaml | yq '.items[] | split_doc' > backup_certs.yaml
+sed -i '/last-applied-configuration/d' backup_certs.yaml
+sed -i '/{"apiVersion":/d' backup_certs.yaml
+sed -i '/resourceVersion/d' backup_certs.yaml
+sed -i '/uid/d' backup_certs.yaml
+sed -i '/creationTimestamp/d' backup_certs.yaml
+
+echo "Backed up certs to backup_certs.yaml.
+Ensure this file exists in secrets/backup_certs.yaml to avoid re-querying letsencrypt if rebuilding the cluster."
+
 HOSTNAME=$(hostname -s)
 # Check whether there is a cluster running
 kubectl get nodes | grep "${HOSTNAME}"

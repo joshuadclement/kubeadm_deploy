@@ -242,5 +242,13 @@ tftpget templates/acmedns_issuer.yaml.j2
 j2 -f json templates/acmedns_issuer.yaml.j2 env.json > customfiles/etc/kubernetes/custom_manifests/acmedns_issuer.yaml
 kubectl apply -f customfiles/etc/kubernetes/custom_manifests/acmedns_issuer.yaml
 
+# User pods backend
+################################################################################
+
+echo "Installing user pods backend"
+
+tftpget templates/user_pods_backend.yaml.j2
+j2 -f json templates/user_pods_backend.yaml.j2 env.json > customfiles/etc/kubernetes/custom_manifests/user_pods_backend.yaml
+kubectl apply -f customfiles/etc/kubernetes/custom_manifests/user_pods_backend.yaml
 
 rsync -rp customfiles/ /

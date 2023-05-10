@@ -21,3 +21,16 @@ while true; do
 		sleep 10
 	fi
 done
+
+# User pods readonly files
+##########################################################################################
+
+# Copy all the readonly files used by our images into /mnt/user_pods_readonly
+mkdir -p /mnt/user_pods_readonly /mnt/remote
+NFS_IP=$(jq < env.json -r '.user_pods.readonly.nfs_IP')
+NFS_PATH=$(jq < env.json -r '.user_pods.readonly.nfs_path')
+mount -t nfs "${NFS_IP}:${NFS_PATH}" /mnt/remote
+rsync -r /mnt/remote/ /mnt/user_pods_readonly/
+
+# Label this node as having the readonly files
+ssh "${CONTROL_HOSTNAME}" kubectl label node "${HOSTNAME}" hasUserPodsReadonly="true"

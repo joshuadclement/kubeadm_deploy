@@ -360,19 +360,14 @@ spec:
   claimRef:
     name: jupyter-sciencedata-v1.0.0
     namespace: sciencedata
-# A local PV needs to have a specified nodeAffinity
-# The following selects nodes with os==linux, which is just all the nodes in the cluster
-# This assumes that all cluster nodes will have the appropriate directory.
-# If this is not the case, then labels must be added to the nodes which have the required directories
-# and this changed accordingly.
   nodeAffinity:
     required:
       nodeSelectorTerms:
         - matchExpressions:
-            - key: kubernetes.io/os
+            - key: hasUserPodsReadonly
               operator: In
               values:
-                - linux
+                - "true"
 
 ---
 apiVersion: v1
@@ -406,19 +401,14 @@ spec:
   claimRef:
     name: jupyter-sciencedata-v1.0.0
     namespace: sciencedata-dev
-# A local PV needs to have a specified nodeAffinity
-# The following selects nodes with os==linux, which is just all the nodes in the cluster
-# This assumes that all cluster nodes will have the appropriate directory.
-# If this is not the case, then labels must be added to the nodes which have the required directories
-# and this changed accordingly.
   nodeAffinity:
     required:
       nodeSelectorTerms:
         - matchExpressions:
-            - key: kubernetes.io/os
+            - key: hasUserPodsReadonly
               operator: In
               values:
-                - linux
+                - "true"
 
 ---
 apiVersion: v1

@@ -48,6 +48,15 @@ MAC_ADDR=$(ip link | grep link/ether | awk '{print $2}' | while read m; do
   [[ $(jq < env.json '.mac_addr_mappings | has( "'"${m}"'" )') == true ]] && echo "${m}" && break
 done)
 if [[ "${MAC_ADDR}" == "" ]]; then
+	echo "Didn't find this node's MAC address in the available env.json, checking if it exists in testenv.json"
+	if [[ -f testenv.json ]]; then
+		mv testenv.json env.json
+		MAC_ADDR=$(ip link | grep link/ether | awk '{print $2}' | while read m; do
+							 [[ $(jq < env.json '.mac_addr_mappings | has( "'"${m}"'" )') == true ]] && echo "${m}" && break
+							 done)
+	fi
+fi
+if [[ "${MAC_ADDR}" == "" ]]; then
 	echo "This node's MAC address is not in the env.json's mac_addr_mappings. Something is probably wrong!" 1>&2
 	exit 1
 fi

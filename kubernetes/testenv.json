@@ -17,7 +17,7 @@
     "docker_registry": {
         "domain": "dockerregistry.clement.tel",
         "nfs_IP": "10.0.0.20",
-        "nfs_path": "/tank/storage/dockerregistry/test",
+        "nfs_path": "/tank/storage/dockerregistry/test"
     },
     "letsencrypt_email": "jodac@dtu.dk",
     "mac_addr_mappings": {
@@ -50,6 +50,7 @@
         }
     },
     "service_subnet": "10.96.0.0/12",
+    "testing": "true",
     "trusted_network_cidr": "10.0.0.0/24",
     "trusted_network_configs": {
         "miniworker1": {
@@ -83,6 +84,7 @@
     },
     "versions": {
         "calico": "3.25.1",
+        "cert_manager": "1.11.1",
         "cni": "1.2.0",
         "crio": "1.26.3",
         "crio_dir": "1.26",

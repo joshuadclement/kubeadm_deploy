@@ -61,13 +61,24 @@ helm repo add projectcalico https://docs.tigera.io/calico/charts
 tftpget templates/calico_values.yaml.j2
 j2 -f json templates/calico_values.yaml.j2 env.json > customfiles/etc/kubernetes/helm_values/calico_values.yaml
 kubectl create namespace tigera-operator
-helm install calico projectcalico/tigera-operator --version v"${CALICO_VERSION}" -f customfiles/etc/kubernetes/helm_values/calico_values.yaml --namespace tigera-operator
+helm install calico projectcalico/tigera-operator --version v"${CALICO_VERSION}" -f customfiles/etc/kubernetes/helm_values/calico_values.yaml --namespace tigera-operator --wait
 
 tftpget downloads/calicoctl-linux-amd64
 chmod +x downloads/calicoctl-linux-amd64
 cp downloads/calicoctl-linux-amd64 customfiles/usr/local/bin/calicoctl
 
 rsync -rp customfiles/ /
+
+# Wait for calico to be ready
+while true; do
+	kubectl --namespace calico-system wait --for=condition=Available deployments/calico-kube-controllers --timeout=10m
+	if [[ $? == 0 ]]; then
+		break
+	else
+		echo "calico-kube-controllers doesn't exist yet, sleeping before trying again"
+		sleep 10
+	fi
+done
 
 # Configure IPpools
 echo "Configuring IP pools"
@@ -83,6 +94,12 @@ kubectl get pods --all-namespaces -o wide | grepcidr "${CLUSTER_RANGE}" | while 
 	NAMESPACE=$(echo "${p}" | awk '{print $1}')
 	PODNAME=$(echo "${p}" | awk '{print $2}')
 	kubectl delete pod -n "${NAMESPACE}" "${PODNAME}"
+done
+# Restart the calico components so that they're aware of the new ippools
+# This ensures that calico will add routes to pods scheduled with addresses from the new ippools.
+kubectl get daemonset -n calico-system | tail -n +2 | while read d; do
+	DSNAME=$(echo "${d}" | awk '{print $1}')
+	kubectl rollout restart daemonset -n calico-system "${DSNAME}"
 done
 
 # Set taint on control plane correctly
@@ -100,9 +117,6 @@ chmod 0600 customfiles/etc/kubernetes/join-command
 rsync -rp customfiles/ /
 echo "Ready for worker nodes to join cluster"
 # At this point, worker nodes will be able to join the cluster by copying the join command via ssh
-
-# Wait for calico to be ready
-kubectl --namespace calico-system wait --for=condition=Available deployments/calico-kube-controllers --timeout=10m
 
 create_namespaces_for_manifest() {
 	yq e '.metadata.namespace' < "${1}" | grep -v -- --- | grep -v null | while read n; do
@@ -147,21 +161,28 @@ helm install -f customfiles/etc/kubernetes/helm_values/ingress_values.yaml ingre
 
 # Cert manager
 echo "Installing cert manager"
+CERT_MANAGER_VERSION=$(jq < env.json -r '.versions.cert_manager')
 helm repo add jetstack https://charts.jetstack.io
 tftpget templates/cert_manager_values.yaml
 cp templates/cert_manager_values.yaml customfiles/etc/kubernetes/helm_values/cert_manager_values.yaml
-helm install -f customfiles/etc/kubernetes/helm_values/cert_manager_values.yaml cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace
+helm install -f customfiles/etc/kubernetes/helm_values/cert_manager_values.yaml cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v"${CERT_MANAGER_VERSION}"
 
 tftpget templates/cluster_issuer.yaml.j2
 j2 -f json templates/cluster_issuer.yaml.j2 env.json > customfiles/etc/kubernetes/custom_manifests/cluster_issuer.yaml
 kubectl apply -f customfiles/etc/kubernetes/custom_manifests/cluster_issuer.yaml
 
 # Apply backed up secrets if exist
-tftpget secrets/backup_certs.yaml
-if [[ -s secrets/backup_certs.yaml ]]; then
+TESTING=$(jq < env.json -r '.testing')
+if [[ $TESTING == "true" ]]; then
+	SECRET_SUBFOLDER="test"
+else
+	SECRET_SUBFOLDER="prod"
+fi
+tftpget secrets/"${SECRET_SUBFOLDER}"/backup_certs.yaml
+if [[ -s secrets/"${SECRET_SUBFOLDER}"/backup_certs.yaml ]]; then
 	echo "Applying saved certificates from a previous cluster"
-	create_namespaces_for_manifest secrets/backup_certs.yaml
-	kubectl apply -f secrets/backup_certs.yaml
+	create_namespaces_for_manifest secrets/"${SECRET_SUBFOLDER}"/backup_certs.yaml
+	kubectl apply -f secrets/"${SECRET_SUBFOLDER}"/backup_certs.yaml
 fi
 
 # Wait
@@ -171,8 +192,8 @@ kubectl --namespace ingress-nginx wait --for=condition=Available deployments/ing
 ##########################################################################################
 
 echo "Installing docker registry"
-tftpget secrets/docker_registry_admin_password
-DOCKER_REGISTRY_ADMIN_PASSWORD=$(cat secrets/docker_registry_admin_password)
+tftpget secrets/"${SECRET_SUBFOLDER}"/docker_registry_admin_password
+DOCKER_REGISTRY_ADMIN_PASSWORD=$(cat secrets/"${SECRET_SUBFOLDER}"/docker_registry_admin_password)
 htpasswd -b -c customfiles/etc/kubernetes/custom_manifests/docker_registry/docker_htpasswd admin "${DOCKER_REGISTRY_ADMIN_PASSWORD}"
 export DOCKER_REGISTRY_HTPASSWD_B64=$(cat customfiles/etc/kubernetes/custom_manifests/docker_registry/docker_htpasswd | base64 -w 0)
 
@@ -194,13 +215,15 @@ j2 -f json templates/deploy_acmedns.yaml.j2 env.json > customfiles/etc/kubernete
 # Deploy the acmedns server and wait for it to be available
 kubectl apply -f customfiles/etc/kubernetes/custom_manifests/deploy_acmedns.yaml
 kubectl --namespace acme-dns wait --for=condition=Available deployments/acme-dns --timeout=10m
+# sleep just to make sure acmedns is actually ready to get requests
+sleep 10
 
 # Apply backed up secrets if exist
 for filename in "acmedns_sdpods.json" "acmedns_sdtestpods.json"; do
-	tftpget secrets/"${filename}"
-	if [[ -s secrets/"${filename}" ]]; then
+	tftpget secrets/"${SECRET_SUBFOLDER}"/"${filename}"
+	if [[ -s secrets/"${SECRET_SUBFOLDER}"/"${filename}" ]]; then
 		echo "Found backup of ${filename} from a previous cluster, copying it."
-		cp secrets/"${filename}" customfiles/etc/kubernetes/custom_manifests/acmedns/"${filename}"
+		cp secrets/"${SECRET_SUBFOLDER}"/"${filename}" customfiles/etc/kubernetes/custom_manifests/acmedns/"${filename}"
 	else
 		echo "No backup of ${filename} found, registering the new subdomain with the acmedns server."
 		# If there is no backed up registration, then curl the server to create one

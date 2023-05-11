@@ -30,7 +30,15 @@ mkdir -p /mnt/user_pods_readonly /mnt/remote
 NFS_IP=$(jq < env.json -r '.user_pods.readonly.nfs_IP')
 NFS_PATH=$(jq < env.json -r '.user_pods.readonly.nfs_path')
 mount -t nfs "${NFS_IP}:${NFS_PATH}" /mnt/remote
-rsync -r /mnt/remote/ /mnt/user_pods_readonly/
+# Rsync is too slow. Check if the directory exists, and assume it's filled correctly if so.
+# This means if something changes in the readonly directory, it needs to be manually synced!
+find /mnt/remote -maxdepth 1 -type d -printf '%P\n' | while read d; do
+	if [[ $d != "" && ! -d /mnt/user_pods_readonly/$d ]]; then
+		echo "Copying ${d} to /mnt/user_pods_readonly"
+		rsync -r /mnt/remote/"${d}" /mnt/user_pods_readonly/"${d}"
+	fi
+done
+umount /mnt/remote
 
 # Label this node as having the readonly files
 ssh "${CONTROL_HOSTNAME}" kubectl label node "${HOSTNAME}" hasUserPodsReadonly="true"

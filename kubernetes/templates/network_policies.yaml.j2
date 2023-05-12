@@ -35,7 +35,7 @@ spec:
       # Allow ingress from the reverse proxy, nowhere else
       - namespaceSelector:
           matchLabels:
-            name: ingress-nginx
+            kubernetes.io/metadata.name: ingress-nginx
     - ports:
       # Allow ssh traffic (reaches pods via an exposed nodePort service, which forwards to port 22)
       - port: 22
@@ -82,7 +82,7 @@ spec:
       # Allow ingress from the reverse proxy, nowhere else
       - namespaceSelector:
           matchLabels:
-            name: ingress-nginx
+            kubernetes.io/metadata.name: ingress-nginx
 ---
 
 ##########################################################################

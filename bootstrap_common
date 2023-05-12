@@ -133,7 +133,7 @@ echo "Configured ssh"
 ##########################################################################################
 
 # Disable swap
-[[ $(swapon --show) ]] && swapoff -a && sed -i 's/^\([^#].*?\sswap\s+sw\s+.*\)$/# \1/'
+[[ $(swapon --show) ]] && swapoff -a && sed -i 's/^\([^#].*\sswap[\s\t]*sw.*\)$/# \1/' /etc/fstab
 
 # Make customfiles directories
 mkdir -p \

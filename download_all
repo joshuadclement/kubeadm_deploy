@@ -1,19 +1,19 @@
 #!/bin/bash
 
-ETCD_VERSION=$(jq < kubernetes/env.json -r '.versions.etcd')
-KUBERNETES_VERSION=$(jq < kubernetes/env.json -r '.versions.kubernetes')
-RUNC_VERSION=$(jq < kubernetes/env.json -r '.versions.runc')
-HELM_VERSION=$(jq < kubernetes/env.json -r '.versions.helm')
-CRIO_VERSION=$(jq < kubernetes/env.json -r '.versions.crio')
-CRIO_DIR_VERSION=$(jq < kubernetes/env.json -r '.versions.crio_dir')
-CRIO_RUNC_VERSION=$(jq < kubernetes/env.json -r '.versions.crio_runc')
-CRIO_RUNC_TILDE_VERSION=$(jq < kubernetes/env.json -r '.versions.crio_runc_tilde')
-CONMON_VERSION=$(jq < kubernetes/env.json -r '.versions.conmon')
-CRICTL_VERSION=$(jq < kubernetes/env.json -r '.versions.crictl')
-CNI_VERSION=$(jq < kubernetes/env.json -r '.versions.cni')
-CALICO_VERSION=$(jq < kubernetes/env.json -r '.versions.calico')
-[[ -d kubernetes/downloads ]] || mkdir kubernetes/downloads
-cd kubernetes/downloads
+ETCD_VERSION=$(jq < env.json -r '.versions.etcd')
+KUBERNETES_VERSION=$(jq < env.json -r '.versions.kubernetes')
+RUNC_VERSION=$(jq < env.json -r '.versions.runc')
+HELM_VERSION=$(jq < env.json -r '.versions.helm')
+CRIO_VERSION=$(jq < env.json -r '.versions.crio')
+CRIO_DIR_VERSION=$(jq < env.json -r '.versions.crio_dir')
+CRIO_RUNC_VERSION=$(jq < env.json -r '.versions.crio_runc')
+CRIO_RUNC_TILDE_VERSION=$(jq < env.json -r '.versions.crio_runc_tilde')
+CONMON_VERSION=$(jq < env.json -r '.versions.conmon')
+CRICTL_VERSION=$(jq < env.json -r '.versions.crictl')
+CNI_VERSION=$(jq < env.json -r '.versions.cni')
+CALICO_VERSION=$(jq < env.json -r '.versions.calico')
+[[ -d downloads ]] || mkdir downloads
+cd downloads
 
 # get_if_not_present(url, optional saved filename)
 get_if_not_present() {

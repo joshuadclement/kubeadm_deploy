@@ -15,7 +15,7 @@ tftpget() {
 	else
 		echo "fetching ${1} from the tftp server..."
 		# Fetch the file
-		tftp 10.0.0.1 -c get kubernetes/"${1}"
+		tftp 10.0.0.1 -c get kubeadm_deploy/"${1}"
 		# Separate the relative path from the filename
 		FILEPATH=$(echo "${1}" | sed 's/\/[^/]*$//')
 		# If there is a '/' anywhere in the relative path of the file,

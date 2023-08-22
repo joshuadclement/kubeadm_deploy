@@ -1,47 +1,38 @@
 {
     "acmedns": {
         "admin_email": "joshua.clement@deic.dk",
-        "hostname": "dns01.clement.tel",
+        "hostname": "sddns01.clement.tel",
         "host_http_port": "15380",
-        "nfs_IP": "10.0.0.20",
+        "nfs_IP": "10.0.0.13",
         "nfs_path": "/tank/storage/acmedns/test",
-        "node_hostname": "miniworker1",
-        "zone": "acme.clement.tel"
+        "node_hostname": "miniworker2",
+        "zone": "sdacme.clement.tel"
     },
     "authorized_keys": [
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFFaL0dy3Dq4DA5GCqFBKVWZntBSF0RIeVd9/qdhIj2n"
     ],
     "cluster_name": "sciencedatak8s",
-    "cluster_range": "10.224.0.0/11",
+    "cluster_range": "10.192.0.0/11",
     "control_hostname": "miniworker3",
     "docker_registry": {
-        "domain": "dockerregistry.clement.tel",
-        "nfs_IP": "10.0.0.20",
+        "domain": "sddockerregistry.clement.tel",
+        "nfs_IP": "10.0.0.13",
         "nfs_path": "/tank/storage/dockerregistry/test"
     },
-    "letsencrypt_email": "jodac@dtu.dk",
+    "letsencrypt_email": "joshua.clement@deic.dk",
     "mac_addr_mappings": {
-        "ec:8e:b5:76:b5:d0": "miniworker1",
         "c8:d3:ff:a0:f9:9e": "miniworker2",
         "ec:8e:b5:78:85:27": "miniworker3"
     },
     "node_hostnames": [
-        "miniworker1",
         "miniworker2",
         "miniworker3"
     ],
     "pod_subnets": {
-        "miniworker1": "10.224.0.0/16",
-        "miniworker2": "10.225.0.0/16",
-        "miniworker3": "10.226.0.0/16"
+        "miniworker2": "10.192.0.0/16",
+        "miniworker3": "10.193.0.0/16"
     },
     "public_network_configs": {
-        "miniworker1": {
-            "address": "130.226.137.136",
-            "gateway": "130.226.137.129",
-            "interface": "enx30de4b1653d7",
-            "netmask": "25"
-        },
         "miniworker2": {
             "address": "130.226.137.137",
             "gateway": "130.226.137.129",
@@ -53,33 +44,27 @@
     "testing": "true",
     "trusted_network_cidr": "10.0.0.0/24",
     "trusted_network_configs": {
-        "miniworker1": {
-            "address": "10.0.0.224",
-            "gateway": "10.0.0.1",
-            "interface": "eno1",
-            "netmask": "24"
-        },
         "miniworker2": {
-            "address": "10.0.0.225",
+            "address": "10.0.0.192",
             "gateway": "10.0.0.1",
             "interface": "eno1",
             "netmask": "24"
         },
         "miniworker3": {
-            "address": "10.0.0.226",
+            "address": "10.0.0.193",
             "gateway": "10.0.0.1",
             "interface": "eno1",
             "netmask": "24"
         }
     },
-    "trusted_nodes_cidr": "10.0.0.224/27",
+    "trusted_nodes_cidr": "10.0.0.192/27",
     "user_pods": {
-        "ingress_domain": "pods.clement.tel",
+        "ingress_domain": "sdpods.clement.tel",
         "readonly": {
-            "nfs_IP": "10.0.0.20",
+            "nfs_IP": "10.0.0.13",
             "nfs_path": "/tank/storage/user_pods_readonly"
         },
-        "test_ingress_domain": "testpods.clement.tel.tel",
+        "test_ingress_domain": "sdtestpods.clement.tel.tel",
         "test_ssh_pubkey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFFaL0dy3Dq4DA5GCqFBKVWZntBSF0RIeVd9/qdhIj2n"
     },
     "versions": {
@@ -97,9 +82,8 @@
     },
     "vlan_config": {
         "addresses": {
-            "miniworker1": "10.2.0.224",
-            "miniworker2": "10.2.0.225",
-            "miniworker3": "10.2.0.226"
+            "miniworker2": "10.2.0.192",
+            "miniworker3": "10.2.0.193"
         },
         "interface": "vlan300",
         "id": "300",
@@ -107,7 +91,6 @@
     },
     "vlan_network_cidr": "10.2.0.0/24",
     "worker_hostnames": [
-        "miniworker1",
         "miniworker2"
     ]
 }

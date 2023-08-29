@@ -36,6 +36,9 @@ find /mnt/remote -maxdepth 1 -type d -printf '%P\n' | while read d; do
 	if [[ $d != "" && ! -d /mnt/user_pods_readonly/$d ]]; then
 		echo "Copying ${d} to /mnt/user_pods_readonly"
 		rsync -r /mnt/remote/"${d}" /mnt/user_pods_readonly/"${d}"
+	else
+		echo "Warning, /mnt/user_pods_readonly/${d} already exists. It is being ignored."
+		echo "If it is not up to date, you must manually update it."
 	fi
 done
 umount /mnt/remote

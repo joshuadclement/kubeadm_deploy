@@ -64,7 +64,7 @@
             "nfs_IP": "10.0.0.13",
             "nfs_path": "/tank/storage/user_pods_readonly"
         },
-        "test_ingress_domain": "sdtestpods.clement.tel.tel",
+        "test_ingress_domain": "sdtestpods.clement.tel",
         "test_ssh_pubkey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFFaL0dy3Dq4DA5GCqFBKVWZntBSF0RIeVd9/qdhIj2n"
     },
     "versions": {

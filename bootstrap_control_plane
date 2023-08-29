@@ -234,7 +234,7 @@ for filename in "acmedns_sdpods.json" "acmedns_sdtestpods.json"; do
 		ACMEDNS_PUBLIC_IP=$(jq < env.json -r '{n: .acmedns.node_hostname, p: .public_network_configs | to_entries[]} | select(.p.key == .n) | .p.value.address')
 		curl -X POST http://"${ACMEDNS_HOSTNAME}"/register \
 				 -H "Content-Type: application/json" \
-				 --data '{"allowfrom": ["'"${ACMEDNS_PUBLIC_IP}"'/32", "127.0.0.0/8", "'"${TRUSTED_NETWORK_CIDR}"'", "'"${VLAN_NETWORK_CIDR}"'"]}' | \
+				 --data '{"allowfrom": ["'"${ACMEDNS_PUBLIC_IP}"'/32", "127.0.0.0/8", "'"${TRUSTED_NETWORK_CIDR}"'", "'"${VLAN_NETWORK_CIDR}"'", "'"${CLUSTER_RANGE}"'"]}' | \
 			tee "${filename}"
 		# If this is run for the first time, it will just copy the registration file in,
 		# but it's possible to run this again after teardown.
